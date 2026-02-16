@@ -5,6 +5,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/animated_gradvis_logo.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../../core/widgets/gradvis_title.dart';
 import '../domain/profile_state.dart';
 import 'widgets/profile_card.dart';
 
@@ -20,45 +21,49 @@ class ProfileSelectScreen extends StatelessWidget {
         listenable: profileState,
         builder: (context, _) {
           final profiles = profileState.profiles;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              children: [
-                const SizedBox(height: 24),
-                const AnimatedGradVisLogo(scale: 0.85),
-                const SizedBox(height: 12),
-                Text(
-                  'GradVis',
-                  style: Theme.of(context).textTheme.headlineLarge
-                      ?.copyWith(letterSpacing: 1.2),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Lag din spiller!',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: AppColors.subtitle),
-                ),
-                const SizedBox(height: 20),
-                ...profiles.map(
-                  (p) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: ProfileCard(
-                      profile: p,
-                      onTap: () {
-                        profileState.setActive(p);
-                        context.go(RouteNames.home);
-                      },
+          return Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Transform.translate(
+                    offset: const Offset(0, 14),
+                    child: const AnimatedGradVisLogo(scale: 1.1),
+                  ),
+                  const SizedBox(height: 0),
+                  const GradVisTitle(),
+                  if (profiles.isEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Lag din spiller!',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppColors.subtitle),
+                    ),
+                  ],
+                  const SizedBox(height: 40),
+                  ...profiles.map(
+                    (p) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: ProfileCard(
+                        profile: p,
+                        onTap: () {
+                          profileState.setActive(p);
+                          context.go(RouteNames.home);
+                        },
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                _NewPlayerButton(
-                  label: profiles.isEmpty ? 'Lag spiller' : 'Ny spiller',
-                  onTap: () => context.go(RouteNames.wizard),
-                ),
-                const SizedBox(height: 32),
-              ],
+                  const SizedBox(height: 12),
+                  _NewPlayerButton(
+                    label:
+                        profiles.isEmpty ? 'Lag spiller' : 'Ny spiller',
+                    onTap: () => context.go(RouteNames.wizard),
+                  ),
+                ],
+              ),
             ),
           );
         },
