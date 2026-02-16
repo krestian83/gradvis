@@ -294,9 +294,9 @@ class _LogoPainter extends CustomPainter {
     final rad = t * 2 * pi;
     return switch (i) {
       0 => -2 + 1.5 * sin(rad) + 0.5 * sin(rad * 2),
-      1 => 2.5 - 1.5 * sin(rad * 1.1) + sin(rad * 0.6),
-      2 => -1.5 - 1.5 * sin(rad * 0.8) + 0.5 * sin(rad * 1.4),
-      _ => 1 + 2 * sin(rad * 0.9) - sin(rad * 1.7),
+      1 => 2.5 - 1.5 * sin(rad) + sin(rad * 2),
+      2 => -1.5 - 1.5 * sin(rad) + 0.5 * sin(rad * 3),
+      _ => 1 + 2 * sin(rad) - sin(rad * 2),
     };
   }
 
@@ -304,9 +304,9 @@ class _LogoPainter extends CustomPainter {
     final rad = t * 2 * pi;
     return switch (i) {
       0 => -1.5 * sin(rad) + 0.5 * cos(rad * 2),
-      1 => -sin(rad * 1.2) + 0.5 * cos(rad * 0.7),
-      2 => -sin(rad * 0.9) + 0.5 * cos(rad * 1.3),
-      _ => -2 * sin(rad * 1.1) + 0.5 * cos(rad * 0.8),
+      1 => -sin(rad) + 0.5 * cos(rad * 2),
+      2 => -sin(rad) + 0.5 * cos(rad * 3),
+      _ => -2 * sin(rad) + 0.5 * cos(rad * 2),
     };
   }
 
