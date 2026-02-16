@@ -7,6 +7,7 @@ import '../../../core/routing/route_names.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/back_button.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../game/domain/game_interface.dart';
 import '../../profile/domain/profile_state.dart';
 import '../domain/level_repository.dart';
 import '../domain/levels_state.dart';
@@ -50,6 +51,16 @@ class _LevelsScreenState extends State<LevelsScreen> {
   }
 
   static const _offsets = [0.0, 44.0, -34.0, 48.0, -14.0];
+
+  Future<void> _openLevel(int levelIndex) async {
+    final result = await context.push<GameResult>(
+      RouteNames.gamePath(widget.subject.name, levelIndex),
+    );
+    if (!mounted || result == null) return;
+
+    await _levelsState.complete(levelIndex, result.stars);
+    await widget.profileState.addPoints(result.pointsEarned);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,12 +144,9 @@ class _LevelsScreenState extends State<LevelsScreen> {
                               subject: widget.subject,
                               isCurrent: isCurrent,
                               isLocked: isLocked,
-                              onTap: () => context.push(
-                                RouteNames.gamePath(
-                                  widget.subject.name,
-                                  reversedIndex,
-                                ),
-                              ),
+                              onTap: () {
+                                _openLevel(reversedIndex);
+                              },
                             ),
                           ),
                         ],

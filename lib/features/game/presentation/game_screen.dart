@@ -48,7 +48,7 @@ class GameScreen extends StatelessWidget {
             child: GameRegistry.instance.hasGame(slot)
                 ? GameRegistry.instance.build(
                     slot,
-                    onComplete: (_) => context.pop(),
+                    onComplete: (result) => context.pop(result),
                   )!
                 : GamePlaceholder(subject: subject, levelLabel: node.label),
           ),
