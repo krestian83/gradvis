@@ -7,11 +7,13 @@ import '../../../profile/data/profile_model.dart';
 /// Avatar + greeting + store badge at the top of home.
 class ProfileHeader extends StatelessWidget {
   final Profile profile;
+  final VoidCallback onAvatarTap;
   final VoidCallback onStoreTap;
 
   const ProfileHeader({
     super.key,
     required this.profile,
+    required this.onAvatarTap,
     required this.onStoreTap,
   });
 
@@ -21,7 +23,10 @@ class ProfileHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         children: [
-          AvatarCircle(emoji: profile.emoji, size: 48),
+          GestureDetector(
+            onTap: onAvatarTap,
+            child: AvatarCircle(emoji: profile.emoji, size: 48),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

@@ -36,6 +36,7 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 ProfileHeader(
                   profile: profile,
+                  onAvatarTap: () => context.go(RouteNames.profileSelect),
                   onStoreTap: () => context.push(RouteNames.store),
                 ),
                 const SizedBox(height: 12),

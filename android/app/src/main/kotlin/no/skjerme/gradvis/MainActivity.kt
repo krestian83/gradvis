@@ -1,4 +1,4 @@
-package com.example.gradvis_v2
+package no.skjerme.gradvis
 
 import io.flutter.embedding.android.FlutterActivity
 

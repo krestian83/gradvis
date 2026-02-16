@@ -29,7 +29,8 @@ class ProfileSelectScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   'GradVis',
-                  style: Theme.of(context).textTheme.headlineLarge,
+                  style: Theme.of(context).textTheme.headlineLarge
+                      ?.copyWith(letterSpacing: 1.2),
                 ),
                 const SizedBox(height: 4),
                 Text(
