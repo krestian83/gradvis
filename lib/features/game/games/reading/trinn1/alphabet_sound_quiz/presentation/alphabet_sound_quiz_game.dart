@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../../../core/theme/app_colors.dart';
+import '../../../../../../../core/widgets/glass_card.dart';
+import '../../../../../../../core/widgets/progress_bar.dart';
 import '../../../../../domain/game_interface.dart';
 import '../application/alphabet_audio_player.dart';
 import '../application/alphabet_session_controller.dart';
@@ -109,59 +112,77 @@ class _AlphabetSoundQuizGameState extends State<AlphabetSoundQuizGame> {
     });
   }
 
-  Color? _optionColor(NorwegianLetter option) {
-    if (_selectedAudioKey != option.audioKey) return null;
-    if (_selectedWasCorrect == true) return const Color(0xFF2ED573);
-    if (_selectedWasCorrect == false) return const Color(0xFFFF4757);
-    return null;
+  bool _isSelectedOption(NorwegianLetter option) =>
+      _selectedAudioKey == option.audioKey;
+
+  Color _optionBackgroundColor(NorwegianLetter option) {
+    if (!_isSelectedOption(option)) return AppColors.cardBgStrong;
+    if (_selectedWasCorrect == true) return AppColors.green;
+    if (_selectedWasCorrect == false) return AppColors.heartFilled;
+    return AppColors.cardBgStrong;
+  }
+
+  Color _optionBorderColor(NorwegianLetter option) {
+    if (!_isSelectedOption(option)) return AppColors.glassBorder;
+    if (_selectedWasCorrect == true) return AppColors.greenLight;
+    if (_selectedWasCorrect == false) return AppColors.heartFilled;
+    return AppColors.glassBorder;
+  }
+
+  Color _optionForegroundColor(NorwegianLetter option) {
+    if (_isSelectedOption(option) && _selectedWasCorrect != null) {
+      return Colors.white;
+    }
+    return AppColors.heading;
   }
 
   @override
   Widget build(BuildContext context) {
     final round = _session.currentRound;
-    final titleStyle = Theme.of(context).textTheme.headlineSmall;
+    final theme = Theme.of(context);
+    final roundProgress = (_session.currentRoundNumber / widget.totalRounds)
+        .clamp(0.0, 1.0);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
-            color: Colors.white.withValues(alpha: 0.8),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.65)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Hvilken bokstav hører du?', style: titleStyle),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Runde ${_session.currentRoundNumber} / ${widget.totalRounds}',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Omstarter: ${_session.restartCount}',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  FilledButton.icon(
-                    onPressed: _isHandlingAnswer ? null : _playCurrentLetter,
-                    icon: const Icon(Icons.volume_up_rounded),
-                    label: const Text('Spill lyd igjen'),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Perfekt-modus: feil svar starter runden pa nytt.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
+          GlassCard(
+            padding: const EdgeInsets.all(16),
+            borderRadius: 20,
+            opacity: 0.6,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hvilken bokstav hører du?',
+                  style: theme.textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Runde ${_session.currentRoundNumber} / ${widget.totalRounds}',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 8),
+                ProgressBar(fraction: roundProgress),
+                const SizedBox(height: 12),
+                _QuizActionButton(
+                  onTap: _isHandlingAnswer ? null : _playCurrentLetter,
+                  icon: Icons.volume_up_rounded,
+                  label: 'Spill lyd igjen',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Perfekt-modus: feil svar starter runden på nytt.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Omstarter: ${_session.restartCount}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
@@ -175,10 +196,18 @@ class _AlphabetSoundQuizGameState extends State<AlphabetSoundQuizGame> {
               children: round.options.map((letter) {
                 return FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: _optionColor(letter),
-                    textStyle: const TextStyle(
-                      fontSize: 40,
+                    backgroundColor: _optionBackgroundColor(letter),
+                    disabledBackgroundColor: _optionBackgroundColor(letter),
+                    foregroundColor: _optionForegroundColor(letter),
+                    disabledForegroundColor: _optionForegroundColor(letter),
+                    elevation: 0,
+                    side: BorderSide(
+                      color: _optionBorderColor(letter),
+                      width: 1.5,
+                    ),
+                    textStyle: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
+                      fontSize: 36,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
@@ -193,6 +222,61 @@ class _AlphabetSoundQuizGameState extends State<AlphabetSoundQuizGame> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuizActionButton extends StatelessWidget {
+  final VoidCallback? onTap;
+  final IconData icon;
+  final String label;
+
+  const _QuizActionButton({
+    required this.onTap,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: enabled ? 1.0 : 0.55,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.orange, AppColors.orangeDark],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.orange.withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
