@@ -200,27 +200,66 @@ void main() {
     },
   );
 
-  test('MultiplicationVisualizer creates rows x columns dots', () async {
-    final visualizer = await _loadVisualizer(
-      MultiplicationVisualizer(
-        context: MathHelpContext(
-          topicFamily: MathTopicFamily.arithmetic,
-          operation: 'multiplication',
-          operands: const [3, 4],
-          correctAnswer: 12,
+  test(
+    'MultiplicationVisualizer starts with first operand and equation row',
+    () async {
+      final visualizer = await _loadVisualizer(
+        MultiplicationVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'multiplication',
+            operands: const [3, 4],
+            correctAnswer: 12,
+          ),
         ),
-      ),
-    );
-    addTearDown(visualizer.onRemove);
+      );
+      addTearDown(visualizer.onRemove);
 
-    expect(visualizer.children.whereType<CircleComponent>().length, 12);
-    expect(
-      visualizer.children.whereType<TextComponent>().any(
-        (component) => component.text == '= 12',
-      ),
-      isTrue,
-    );
-  });
+      expect(visualizer.children.whereType<CircleComponent>().length, 3);
+      final firstOperandLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == '3');
+      final multiplicationLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == 'x');
+      final secondOperandLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == '4');
+      final equalsLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == '=');
+      final resultLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == '12');
+
+      expect(
+        (firstOperandLabel.position.y - multiplicationLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        (secondOperandLabel.position.y - multiplicationLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        (equalsLabel.position.y - multiplicationLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        (resultLabel.position.y - multiplicationLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        firstOperandLabel.position.x,
+        lessThan(multiplicationLabel.position.x),
+      );
+      expect(
+        multiplicationLabel.position.x,
+        lessThan(secondOperandLabel.position.x),
+      );
+      expect(secondOperandLabel.position.x, lessThan(equalsLabel.position.x));
+      expect(equalsLabel.position.x, lessThan(resultLabel.position.x));
+    },
+  );
 
   test('DivisionVisualizer builds total dots and group labels', () async {
     final visualizer = await _loadVisualizer(

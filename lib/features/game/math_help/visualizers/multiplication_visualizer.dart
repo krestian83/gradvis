@@ -14,10 +14,18 @@ class MultiplicationVisualizer extends MathVisualizer {
   static const _fallbackHeight = 220.0;
   static const _transitionDurationSeconds = 0.82;
   static const _staggerDelaySeconds = 0.012;
-  static const _phasePause = Duration(milliseconds: 1080);
-  static const _loopPause = Duration(seconds: 2);
+  static const _phasePause = Duration(milliseconds: 1050);
+  static const _loopPause = Duration(seconds: 3);
 
-  static const _answerColor = Color(0xFF0A2463);
+  static const _labelRevealDurationSeconds = 0.51;
+  static const _labelPulseDurationSeconds = 0.21;
+  static const _symbolRevealDurationSeconds = 0.36;
+  static const _resultPulseDurationSeconds = 0.27;
+
+  static const _firstOperandColor = Color(0xFF1B4F9A);
+  static const _secondOperandColor = Color(0xFFB36A00);
+  static const _equationColor = Color(0xFF0A2463);
+  static const _resultColor = Color(0xFF2E7D32);
 
   late final int _targetRows;
   late final int _targetColumns;
@@ -27,19 +35,28 @@ class MultiplicationVisualizer extends MathVisualizer {
 
   bool _isAnimating = false;
   bool _disposed = false;
-  bool _isAnswerVisible = false;
+  bool _isSequenceAnimating = false;
+  bool _isFirstOperandVisible = false;
+  bool _isMultiplicationSignVisible = false;
+  bool _isSecondOperandVisible = false;
+  bool _isEqualsVisible = false;
+  bool _isResultVisible = false;
 
   Future<void>? _activeTransition;
 
   _MultiplicationGridComponent? _grid;
   List<_MultiplicationDotComponent> _dots = <_MultiplicationDotComponent>[];
-  late final TextComponent _answerLabel;
+  late final TextComponent _firstOperandLabel;
+  late final TextComponent _multiplicationSignLabel;
+  late final TextComponent _secondOperandLabel;
+  late final TextComponent _equalsLabel;
+  late final TextComponent _resultLabel;
 
   MultiplicationVisualizer({required super.context}) {
     _targetRows = _wholeOperand(0);
     _targetColumns = _wholeOperand(1);
-    _rows = _targetRows;
-    _columns = _targetColumns;
+    _rows = _previewRows;
+    _columns = _previewColumns;
   }
 
   @override
@@ -57,7 +74,7 @@ class MultiplicationVisualizer extends MathVisualizer {
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    if (!isLoaded || _isAnimating) {
+    if (!isLoaded || _isAnimating || _isSequenceAnimating) {
       return;
     }
     _applyCurrentLayout();
@@ -72,43 +89,81 @@ class MultiplicationVisualizer extends MathVisualizer {
 
   Future<void> _runLoop() async {
     while (!_disposed) {
+      await _playOnce();
+      if (_disposed) {
+        return;
+      }
       await Future<void>.delayed(_loopPause);
       if (_disposed) {
         return;
       }
-      if (_hasPreviewState) {
-        _hideAnswer();
-        await _executeTransition(rows: _previewRows, columns: _previewColumns);
-        if (_disposed) {
-          return;
-        }
-        await Future<void>.delayed(_phasePause);
-        if (_disposed) {
-          return;
-        }
-        await _executeTransition(rows: _targetRows, columns: _targetColumns);
-        if (_disposed) {
-          return;
-        }
-      }
-      _showAnswer();
     }
   }
 
-  bool get _hasPreviewState {
-    if (_targetProduct <= 1) {
+  Future<void> _playOnce() async {
+    _isSequenceAnimating = true;
+    _resetEquationRow();
+
+    try {
+      await _executeTransition(rows: _previewRows, columns: _previewColumns);
+      if (_disposed) {
+        return;
+      }
+
+      await _showOperandLabel(_firstOperandLabel);
+      _isFirstOperandVisible = true;
+      if (!await _pauseForNextStep()) {
+        return;
+      }
+
+      await _showEquationSymbol(_multiplicationSignLabel);
+      _isMultiplicationSignVisible = true;
+      if (!await _pauseForNextStep()) {
+        return;
+      }
+
+      await Future.wait(<Future<void>>[
+        _showOperandLabel(_secondOperandLabel),
+        _executeTransition(rows: _targetRows, columns: _targetColumns),
+      ]);
+      _isSecondOperandVisible = true;
+      if (!await _pauseForNextStep()) {
+        return;
+      }
+
+      await _showEquationSymbol(_equalsLabel);
+      _isEqualsVisible = true;
+      if (!await _pauseForNextStep()) {
+        return;
+      }
+
+      await _showResultLabel();
+      _isResultVisible = true;
+    } finally {
+      _isSequenceAnimating = false;
+    }
+  }
+
+  Future<bool> _pauseForNextStep() async {
+    if (_disposed) {
       return false;
     }
-    return _previewRows != _targetRows || _previewColumns != _targetColumns;
+    await Future<void>.delayed(_phasePause);
+    return !_disposed;
   }
 
-  int get _previewRows => _targetRows > 1 ? 1 : _targetRows;
+  int get _previewRows {
+    if (_targetRows <= 1) {
+      return _targetRows;
+    }
+    return _targetColumns > 1 ? _targetRows : 1;
+  }
 
   int get _previewColumns {
-    if (_targetRows > 1) {
+    if (_targetProduct <= 1) {
       return _targetColumns;
     }
-    return _targetColumns > 1 ? 1 : _targetColumns;
+    return 1;
   }
 
   void _buildScene() {
@@ -120,20 +175,68 @@ class MultiplicationVisualizer extends MathVisualizer {
       add(dot);
     }
 
-    _answerLabel = TextComponent(
-      text: '= ${context.correctAnswer}',
+    _firstOperandLabel = TextComponent(
+      text: '$_targetRows',
       anchor: Anchor.center,
       scale: Vector2.zero(),
       textRenderer: mathHelpTextPaint(
-        color: _answerColor,
+        color: _firstOperandColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    add(_firstOperandLabel);
+
+    _multiplicationSignLabel = TextComponent(
+      text: 'x',
+      anchor: Anchor.center,
+      scale: Vector2.zero(),
+      textRenderer: mathHelpTextPaint(
+        color: _equationColor,
         fontSize: 34,
         fontWeight: FontWeight.w700,
       ),
     );
-    add(_answerLabel);
+    add(_multiplicationSignLabel);
+
+    _secondOperandLabel = TextComponent(
+      text: '$_targetColumns',
+      anchor: Anchor.center,
+      scale: Vector2.zero(),
+      textRenderer: mathHelpTextPaint(
+        color: _secondOperandColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    add(_secondOperandLabel);
+
+    _equalsLabel = TextComponent(
+      text: '=',
+      anchor: Anchor.center,
+      scale: Vector2.zero(),
+      textRenderer: mathHelpTextPaint(
+        color: _equationColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    add(_equalsLabel);
+
+    _resultLabel = TextComponent(
+      text: '${context.correctAnswer}',
+      anchor: Anchor.center,
+      scale: Vector2.zero(),
+      textRenderer: mathHelpTextPaint(
+        color: _resultColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    add(_resultLabel);
 
     _applyEquationLayout();
-    _showAnswer();
+    _resetEquationRow();
   }
 
   List<_MultiplicationDotComponent> _createDots({
@@ -461,11 +564,11 @@ class MultiplicationVisualizer extends MathVisualizer {
     final double width = size.x > 0 ? size.x : _fallbackWidth;
     final double height = size.y > 0 ? size.y : _fallbackHeight;
     final double horizontalPadding = math.max(12, width * 0.06);
-    final double topPadding = math.max(10, height * 0.07);
-    final double bottomPadding = math.max(58, height * 0.3);
+    final double topPadding = height * 0.34;
+    final double bottomPadding = math.max(10, height * 0.06);
     final double arenaWidth = math.max(0, width - (horizontalPadding * 2));
     final double arenaHeight = math.max(
-      66,
+      72,
       height - topPadding - bottomPadding,
     );
 
@@ -491,43 +594,154 @@ class MultiplicationVisualizer extends MathVisualizer {
   void _applyEquationLayout() {
     final double width = size.x > 0 ? size.x : _fallbackWidth;
     final double height = size.y > 0 ? size.y : _fallbackHeight;
-    _answerLabel
-      ..position = Vector2(width / 2, height * 0.84)
-      ..text = '= ${context.correctAnswer}';
-    if (!_isAnswerVisible) {
-      _answerLabel.scale = Vector2.zero();
-    }
+    final double equationY = math.max(30, height * 0.14);
+    final double equationCenterX = width / 2;
+    final double equationStep = math.max(26, math.min(46, width * 0.09));
+
+    _firstOperandLabel
+      ..position = Vector2(equationCenterX - (equationStep * 2), equationY)
+      ..scale = _isFirstOperandVisible ? Vector2.all(1) : Vector2.zero();
+    _multiplicationSignLabel
+      ..position = Vector2(equationCenterX - equationStep, equationY)
+      ..scale = _isMultiplicationSignVisible ? Vector2.all(1) : Vector2.zero();
+    _secondOperandLabel
+      ..position = Vector2(equationCenterX, equationY)
+      ..scale = _isSecondOperandVisible ? Vector2.all(1) : Vector2.zero();
+    _equalsLabel
+      ..position = Vector2(equationCenterX + equationStep, equationY)
+      ..scale = _isEqualsVisible ? Vector2.all(1) : Vector2.zero();
+    _resultLabel
+      ..position = Vector2(equationCenterX + (equationStep * 2.2), equationY)
+      ..scale = _isResultVisible ? Vector2.all(1) : Vector2.zero();
   }
 
-  void _showAnswer() {
-    _isAnswerVisible = true;
-    _removeEffects(_answerLabel);
-    _answerLabel
-      ..scale = Vector2.zero()
-      ..text = '= ${context.correctAnswer}';
-    _answerLabel.add(
+  void _resetEquationRow() {
+    _isFirstOperandVisible = false;
+    _isMultiplicationSignVisible = false;
+    _isSecondOperandVisible = false;
+    _isEqualsVisible = false;
+    _isResultVisible = false;
+
+    _removeEffects(_firstOperandLabel);
+    _firstOperandLabel
+      ..text = '$_targetRows'
+      ..textRenderer = mathHelpTextPaint(
+        color: _firstOperandColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      )
+      ..scale = Vector2.zero();
+
+    _removeEffects(_multiplicationSignLabel);
+    _multiplicationSignLabel
+      ..text = 'x'
+      ..scale = Vector2.zero();
+
+    _removeEffects(_secondOperandLabel);
+    _secondOperandLabel
+      ..text = '$_targetColumns'
+      ..textRenderer = mathHelpTextPaint(
+        color: _secondOperandColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      )
+      ..scale = Vector2.zero();
+
+    _removeEffects(_equalsLabel);
+    _equalsLabel
+      ..text = '='
+      ..scale = Vector2.zero();
+
+    _removeEffects(_resultLabel);
+    _resultLabel
+      ..text = '${context.correctAnswer}'
+      ..textRenderer = mathHelpTextPaint(
+        color: _resultColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      )
+      ..scale = Vector2.zero();
+
+    _applyEquationLayout();
+  }
+
+  Future<void> _showOperandLabel(TextComponent label) {
+    _removeEffects(label);
+    label.scale = Vector2.zero();
+    final Completer<void> completer = Completer<void>();
+    label.add(
       SequenceEffect(<Effect>[
         ScaleEffect.to(
           Vector2.all(1),
-          EffectController(duration: 0.36, curve: Curves.easeOutBack),
+          EffectController(
+            duration: _labelRevealDurationSeconds,
+            curve: Curves.easeOutBack,
+          ),
         ),
         ScaleEffect.to(
-          Vector2.all(1.16),
+          Vector2.all(1.1),
           EffectController(
-            duration: 0.18,
+            duration: _labelPulseDurationSeconds,
+            curve: Curves.easeInOut,
+            alternate: true,
+            repeatCount: 1,
+          ),
+        ),
+      ], onComplete: completer.complete),
+    );
+    return completer.future;
+  }
+
+  Future<void> _showEquationSymbol(TextComponent label) {
+    _removeEffects(label);
+    label.scale = Vector2.zero();
+    final Completer<void> completer = Completer<void>();
+    label.add(
+      ScaleEffect.to(
+        Vector2.all(1),
+        EffectController(
+          duration: _symbolRevealDurationSeconds,
+          curve: Curves.easeOutBack,
+        ),
+        onComplete: completer.complete,
+      ),
+    );
+    return completer.future;
+  }
+
+  Future<void> _showResultLabel() {
+    _removeEffects(_resultLabel);
+    _resultLabel
+      ..text = '${context.correctAnswer}'
+      ..textRenderer = mathHelpTextPaint(
+        color: _resultColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      )
+      ..scale = Vector2.zero();
+
+    final Completer<void> completer = Completer<void>();
+    _resultLabel.add(
+      SequenceEffect(<Effect>[
+        ScaleEffect.to(
+          Vector2.all(1),
+          EffectController(
+            duration: _labelRevealDurationSeconds,
+            curve: Curves.easeOutBack,
+          ),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.14),
+          EffectController(
+            duration: _resultPulseDurationSeconds,
             curve: Curves.easeInOut,
             alternate: true,
             repeatCount: 2,
           ),
         ),
-      ]),
+      ], onComplete: completer.complete),
     );
-  }
-
-  void _hideAnswer() {
-    _isAnswerVisible = false;
-    _removeEffects(_answerLabel);
-    _answerLabel.scale = Vector2.zero();
+    return completer.future;
   }
 
   void _removeEffects(PositionComponent component) {
