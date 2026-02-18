@@ -30,12 +30,9 @@ void main() {
 
     expect(visualizer.children.whereType<CircleComponent>().length, 7);
     expect(visualizer.children.whereType<RectangleComponent>(), isNotEmpty);
-    expect(
-      visualizer.children.whereType<TextComponent>().any(
-        (component) => component.text == '4 + 3 = 7',
-      ),
-      isTrue,
-    );
+    final texts = visualizer.children.whereType<TextComponent>().toList();
+    expect(texts.any((component) => component.text == '+'), isTrue);
+    expect(texts.any((component) => component.text == '='), isTrue);
   });
 
   test('AdditionVisualizer normalizes negative and large operands', () async {
@@ -52,13 +49,65 @@ void main() {
     addTearDown(visualizer.onRemove);
 
     expect(visualizer.children.whereType<CircleComponent>().length, 20);
-    expect(
-      visualizer.children.whereType<TextComponent>().any(
-        (component) => component.text == '20 + 0 = 20',
-      ),
-      isTrue,
-    );
+    final texts = visualizer.children.whereType<TextComponent>().toList();
+    expect(texts.any((component) => component.text == '20'), isTrue);
+    expect(texts.any((component) => component.text == '0'), isTrue);
   });
+
+  test(
+    'AdditionVisualizer keeps operands and symbols in equation row',
+    () async {
+      final visualizer = await _loadVisualizer(
+        AdditionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'addition',
+            operands: const [8, 8],
+            correctAnswer: 16,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      final operandLabels = visualizer.children
+          .whereType<TextComponent>()
+          .where((component) => component.text == '8')
+          .toList();
+
+      expect(operandLabels.length, 2);
+      final sortedOperands = operandLabels.toList()
+        ..sort((left, right) => left.position.x.compareTo(right.position.x));
+      final firstAddendLabel = sortedOperands.first;
+      final secondAddendLabel = sortedOperands.last;
+      final plusLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == '+');
+      final equalsLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == '=');
+
+      expect(
+        (secondAddendLabel.position - firstAddendLabel.position).length,
+        greaterThan(20),
+      );
+      expect(
+        (firstAddendLabel.position.y - plusLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        (secondAddendLabel.position.y - plusLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        (equalsLabel.position.y - plusLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        firstAddendLabel.position.x,
+        lessThan(secondAddendLabel.position.x),
+      );
+    },
+  );
 
   test('SubtractionVisualizer builds subtraction dot-grid scene', () async {
     final visualizer = await _loadVisualizer(

@@ -15,14 +15,9 @@ class AdditionVisualizer extends MathVisualizer {
   static const _fallbackHeight = 220.0;
   static const _dotRadiusFactor = 0.22;
   static const _minDotRadius = 3.6;
-  static const _stagingScale = 0.86;
-  static const _hiddenStagingScale = 0.62;
+  static const _hiddenSecondDotScale = 0.62;
   static const _revealDurationSeconds = 0.51;
   static const _revealStaggerDelaySeconds = 0.075;
-  static const _moveDurationSeconds = 1.92;
-  static const _moveStaggerDelaySeconds = 0.09;
-  static const _countSlideDurationSeconds = 0.84;
-  static const _countSlideStaggerSeconds = 0.18;
   static const _colorMorphDuration = Duration(milliseconds: 900);
   static const _phasePause = Duration(milliseconds: 1050);
   static const _loopPause = Duration(seconds: 3);
@@ -39,9 +34,12 @@ class AdditionVisualizer extends MathVisualizer {
 
   bool _disposed = false;
   bool _isAnimating = false;
-  bool _isMerged = false;
   bool _isSecondGroupVisible = false;
-  bool _areCountsInEquation = false;
+  bool _isFirstCountVisible = false;
+  bool _isSecondCountVisible = false;
+  bool _isPlusVisible = false;
+  bool _isEqualsVisible = false;
+  bool _isResultVisible = false;
 
   late final int _firstAddend;
   late final int _secondAddend;
@@ -101,61 +99,58 @@ class AdditionVisualizer extends MathVisualizer {
     _resetScene();
     _isAnimating = true;
 
-    await _showCountLabel(_firstCountLabel);
+    try {
+      await _showCountLabel(_firstCountLabel);
+      _isFirstCountVisible = true;
+      if (!await _pauseForNextStep()) {
+        return;
+      }
+
+      await _showPlusLabel();
+      if (!await _pauseForNextStep()) {
+        return;
+      }
+
+      if (_secondDots.isNotEmpty) {
+        await Future.wait(<Future<void>>[
+          _revealSecondGroup(),
+          _showCountLabel(_secondCountLabel),
+        ]);
+        _isSecondCountVisible = true;
+        if (!await _pauseForNextStep()) {
+          return;
+        }
+      } else {
+        await _showCountLabel(_secondCountLabel);
+        _isSecondCountVisible = true;
+        if (!await _pauseForNextStep()) {
+          return;
+        }
+      }
+
+      await _showEqualsLabel();
+      if (!await _pauseForNextStep()) {
+        return;
+      }
+
+      await Future.wait(<Future<void>>[
+        _showResultLabel(),
+        _morphMergedDotsToOneColor(),
+      ]);
+      if (_disposed) {
+        return;
+      }
+    } finally {
+      _isAnimating = false;
+    }
+  }
+
+  Future<bool> _pauseForNextStep() async {
     if (_disposed) {
-      return;
+      return false;
     }
     await Future<void>.delayed(_phasePause);
-    if (_disposed) {
-      return;
-    }
-
-    if (_secondDots.isNotEmpty) {
-      await _revealSecondGroup();
-      if (_disposed) {
-        return;
-      }
-      await _showCountLabel(_secondCountLabel);
-      if (_disposed) {
-        return;
-      }
-      await Future<void>.delayed(_phasePause);
-      if (_disposed) {
-        return;
-      }
-    }
-
-    final moveFutures = <Future<void>>[];
-    for (var index = 0; index < _secondDots.length; index++) {
-      final dot = _secondDots[index];
-      moveFutures.add(
-        dot.animateTo(
-          targetPosition: _layout.targetPositions[_firstAddend + index],
-          duration: _moveDurationSeconds,
-          targetScale: 1,
-          delay: index * _moveStaggerDelaySeconds,
-        ),
-      );
-    }
-
-    if (moveFutures.isNotEmpty) {
-      await Future.wait(moveFutures);
-      if (_disposed) {
-        return;
-      }
-    }
-
-    await _morphMergedDotsToOneColor();
-    if (_disposed) {
-      return;
-    }
-    await _slideCountsIntoEquation();
-    if (_disposed) {
-      return;
-    }
-    _isMerged = true;
-    await _showEquationTail();
-    _isAnimating = false;
+    return !_disposed;
   }
 
   void _buildScene() {
@@ -180,11 +175,11 @@ class AdditionVisualizer extends MathVisualizer {
     for (var index = 0; index < _secondAddend; index++) {
       final dot =
           _AdditionDotComponent(
-              center: _layout.stagingPositions[index],
+              center: _layout.targetPositions[_firstAddend + index],
               color: _secondDotColor,
               radius: _layout.dotRadius,
             )
-            ..scale = Vector2.all(_hiddenStagingScale)
+            ..scale = Vector2.all(_hiddenSecondDotScale)
             ..opacity = 0;
       add(dot);
       _secondDots.add(dot);
@@ -275,8 +270,8 @@ class AdditionVisualizer extends MathVisualizer {
       dot
         ..radius = _layout.dotRadius
         ..paint.color = _secondDotColor
-        ..position = _layout.stagingPositions[index]
-        ..scale = Vector2.all(_hiddenStagingScale)
+        ..position = _layout.targetPositions[_firstAddend + index]
+        ..scale = Vector2.all(_hiddenSecondDotScale)
         ..opacity = 0;
     }
 
@@ -325,9 +320,12 @@ class AdditionVisualizer extends MathVisualizer {
       ..position = _layout.resultPosition
       ..scale = Vector2.zero();
 
-    _areCountsInEquation = false;
     _isSecondGroupVisible = false;
-    _isMerged = false;
+    _isFirstCountVisible = false;
+    _isSecondCountVisible = false;
+    _isPlusVisible = false;
+    _isEqualsVisible = false;
+    _isResultVisible = false;
   }
 
   void _removeEffects(PositionComponent component) {
@@ -355,29 +353,45 @@ class AdditionVisualizer extends MathVisualizer {
     for (var index = 0; index < _secondDots.length; index++) {
       final dot = _secondDots[index];
       final targetPosition = _layout.targetPositions[_firstAddend + index];
-      final position = _isMerged
-          ? targetPosition
-          : _layout.stagingPositions[index];
-      final scale = _isMerged
-          ? 1.0
-          : (_isSecondGroupVisible ? _stagingScale : _hiddenStagingScale);
-      final opacity = _isSecondGroupVisible || _isMerged ? 1.0 : 0.0;
+      final scale = _isSecondGroupVisible ? 1.0 : _hiddenSecondDotScale;
+      final opacity = _isSecondGroupVisible ? 1.0 : 0.0;
       dot
         ..radius = _layout.dotRadius
-        ..position = position
+        ..position = targetPosition
         ..scale = Vector2.all(scale)
         ..opacity = opacity;
     }
 
-    _firstCountLabel.position = _areCountsInEquation
-        ? _layout.firstEquationNumberPosition
-        : _layout.firstCountPosition;
-    _secondCountLabel.position = _areCountsInEquation
-        ? _layout.secondEquationNumberPosition
-        : _layout.secondCountPosition;
-    _plusLabel.position = _layout.plusPosition;
-    _equalsLabel.position = _layout.equalsPosition;
-    _resultLabel.position = _layout.resultPosition;
+    _firstCountLabel
+      ..position = _layout.firstCountPosition
+      ..scale = _isFirstCountVisible ? Vector2.all(1) : Vector2.zero()
+      ..textRenderer = mathHelpTextPaint(
+        color: _firstLabelColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      );
+    _secondCountLabel
+      ..position = _layout.secondCountPosition
+      ..scale = _isSecondCountVisible ? Vector2.all(1) : Vector2.zero()
+      ..textRenderer = mathHelpTextPaint(
+        color: _secondLabelColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      );
+    _plusLabel
+      ..position = _layout.plusPosition
+      ..scale = _isPlusVisible ? Vector2.all(1) : Vector2.zero();
+    _equalsLabel
+      ..position = _layout.equalsPosition
+      ..scale = _isEqualsVisible ? Vector2.all(1) : Vector2.zero();
+    _resultLabel
+      ..position = _layout.resultPosition
+      ..scale = _isResultVisible ? Vector2.all(1) : Vector2.zero()
+      ..textRenderer = mathHelpTextPaint(
+        color: _isResultVisible ? _mergedDotColor : _equationColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      );
   }
 
   _SceneLayout _createLayout() {
@@ -386,10 +400,7 @@ class AdditionVisualizer extends MathVisualizer {
     final horizontalPadding = math.max(12.0, width * 0.06);
     final bottomPadding = math.max(10.0, height * 0.06);
     final equationY = math.max(30.0, height * 0.14);
-
-    final stagingTop = height * 0.24;
-    final stagingBottom = height * 0.47;
-    final gridTop = height * 0.5;
+    final gridTop = height * 0.34;
     final gridBottom = height - bottomPadding;
 
     final gridRect = Rect.fromLTWH(
@@ -397,12 +408,6 @@ class AdditionVisualizer extends MathVisualizer {
       gridTop,
       math.max(80.0, width - (horizontalPadding * 2)),
       math.max(72.0, gridBottom - gridTop),
-    );
-    final stagingRect = Rect.fromLTWH(
-      horizontalPadding,
-      stagingTop,
-      math.max(80.0, width - (horizontalPadding * 2)),
-      math.max(44.0, stagingBottom - stagingTop),
     );
 
     final targetCount = _totalDots;
@@ -417,35 +422,8 @@ class AdditionVisualizer extends MathVisualizer {
       count: targetCount,
     );
 
-    final stagingSpec = _bestGrid(
-      count: math.max(1, _secondAddend),
-      width: stagingRect.width,
-      height: stagingRect.height,
-    );
-    final stagingPositions = _gridPositions(
-      rect: stagingRect,
-      columns: stagingSpec.columns,
-      count: _secondAddend,
-    );
-
     var radiusBase = math.min(targetSpec.cellWidth, targetSpec.cellHeight);
-    if (_secondAddend > 0) {
-      final stageMin = math.min(stagingSpec.cellWidth, stagingSpec.cellHeight);
-      radiusBase = math.min(radiusBase, stageMin);
-    }
     final radius = math.max(_minDotRadius, radiusBase * _dotRadiusFactor);
-    final firstCountPosition = _countPosition(
-      points: targetPositions.take(_firstAddend).toList(),
-      fallbackX: gridRect.left + gridRect.width * 0.3,
-      fallbackY: gridRect.top - 12,
-      radius: radius,
-    );
-    final secondCountPosition = _countPosition(
-      points: stagingPositions,
-      fallbackX: stagingRect.left + stagingRect.width * 0.7,
-      fallbackY: stagingRect.top - 8,
-      radius: radius,
-    );
     final equationCenterX = width / 2;
     final equationStep = math.max(26.0, math.min(46.0, width * 0.09));
     final firstEquationNumberPosition = Vector2(
@@ -466,37 +444,13 @@ class AdditionVisualizer extends MathVisualizer {
       gridOrigin: Vector2(gridRect.left, gridRect.top),
       gridSize: Vector2(gridRect.width, gridRect.height),
       targetPositions: targetPositions,
-      stagingPositions: stagingPositions,
       dotRadius: radius,
-      firstCountPosition: firstCountPosition,
-      secondCountPosition: secondCountPosition,
-      firstEquationNumberPosition: firstEquationNumberPosition,
-      secondEquationNumberPosition: secondEquationNumberPosition,
+      firstCountPosition: firstEquationNumberPosition,
+      secondCountPosition: secondEquationNumberPosition,
       plusPosition: plusPosition,
       equalsPosition: equalsPosition,
       resultPosition: resultPosition,
-      equationPosition: Vector2(width / 2, equationY),
     );
-  }
-
-  Vector2 _countPosition({
-    required List<Vector2> points,
-    required double fallbackX,
-    required double fallbackY,
-    required double radius,
-  }) {
-    if (points.isEmpty) {
-      return Vector2(fallbackX, fallbackY);
-    }
-
-    var minY = points.first.y;
-    var sumX = 0.0;
-    for (final point in points) {
-      minY = math.min(minY, point.y);
-      sumX += point.x;
-    }
-    final averageX = sumX / points.length;
-    return Vector2(averageX, minY - (radius * 2.8));
   }
 
   _GridSpec _bestGrid({
@@ -607,9 +561,9 @@ class AdditionVisualizer extends MathVisualizer {
     final revealFutures = <Future<void>>[];
     for (var index = 0; index < _secondDots.length; index++) {
       revealFutures.add(
-        _secondDots[index].revealInStaging(
+        _secondDots[index].revealInGrid(
           duration: _revealDurationSeconds,
-          targetScale: _stagingScale,
+          targetScale: 1,
           delay: index * _revealStaggerDelaySeconds,
         ),
       );
@@ -646,65 +600,28 @@ class AdditionVisualizer extends MathVisualizer {
     }
   }
 
-  Future<void> _slideCountsIntoEquation() async {
-    _removeEffects(_firstCountLabel);
-    _removeEffects(_secondCountLabel);
-    _firstCountLabel.scale = Vector2.all(1);
-    _secondCountLabel.scale = Vector2.all(1);
-
-    final slideFutures = <Future<void>>[
-      _moveLabelTo(
-        _firstCountLabel,
-        _layout.firstEquationNumberPosition,
-        delay: 0,
-      ),
-      _moveLabelTo(
-        _secondCountLabel,
-        _layout.secondEquationNumberPosition,
-        delay: _countSlideStaggerSeconds,
-      ),
-    ];
-
-    await Future.wait(slideFutures);
-    _firstCountLabel.textRenderer = mathHelpTextPaint(
-      color: _mergedDotColor,
-      fontSize: 32,
-      fontWeight: FontWeight.w700,
-    );
-    _secondCountLabel.textRenderer = mathHelpTextPaint(
-      color: _mergedDotColor,
-      fontSize: 32,
-      fontWeight: FontWeight.w700,
-    );
-    _areCountsInEquation = true;
+  Future<void> _showPlusLabel() async {
+    if (_isPlusVisible) {
+      return;
+    }
+    _isPlusVisible = true;
+    await _showEquationSymbol(_plusLabel);
   }
 
-  Future<void> _moveLabelTo(
-    TextComponent label,
-    Vector2 targetPosition, {
-    required double delay,
-  }) {
-    final completer = Completer<void>();
-    label.add(
-      MoveEffect.to(
-        targetPosition,
-        EffectController(
-          duration: _countSlideDurationSeconds,
-          startDelay: delay,
-          curve: Curves.easeInOutCubic,
-        ),
-        onComplete: completer.complete,
-      ),
-    );
-    return completer.future;
+  Future<void> _showEqualsLabel() async {
+    if (_isEqualsVisible) {
+      return;
+    }
+    _isEqualsVisible = true;
+    await _showEquationSymbol(_equalsLabel);
   }
 
-  Future<void> _showEquationTail() {
-    _removeEffects(_plusLabel);
-    _removeEffects(_equalsLabel);
+  Future<void> _showResultLabel() async {
+    if (_isResultVisible) {
+      return;
+    }
+    _isResultVisible = true;
     _removeEffects(_resultLabel);
-    _plusLabel.scale = Vector2.zero();
-    _equalsLabel.scale = Vector2.zero();
     _resultLabel.scale = Vector2.zero();
     _resultLabel.text = '$_totalDots';
     _resultLabel.textRenderer = mathHelpTextPaint(
@@ -714,31 +631,11 @@ class AdditionVisualizer extends MathVisualizer {
     );
 
     final completer = Completer<void>();
-    _plusLabel.add(
-      ScaleEffect.to(
-        Vector2.all(1),
-        EffectController(duration: 0.36, curve: Curves.easeOutBack),
-      ),
-    );
-    _equalsLabel.add(
-      ScaleEffect.to(
-        Vector2.all(1),
-        EffectController(
-          duration: 0.36,
-          startDelay: 0.16,
-          curve: Curves.easeOutBack,
-        ),
-      ),
-    );
     _resultLabel.add(
       SequenceEffect(<Effect>[
         ScaleEffect.to(
           Vector2.all(1),
-          EffectController(
-            duration: 0.51,
-            startDelay: 0.28,
-            curve: Curves.easeOutBack,
-          ),
+          EffectController(duration: 0.51, curve: Curves.easeOutBack),
         ),
         ScaleEffect.to(
           Vector2.all(1.14),
@@ -750,6 +647,20 @@ class AdditionVisualizer extends MathVisualizer {
           ),
         ),
       ], onComplete: completer.complete),
+    );
+    await completer.future;
+  }
+
+  Future<void> _showEquationSymbol(TextComponent label) {
+    _removeEffects(label);
+    label.scale = Vector2.zero();
+    final completer = Completer<void>();
+    label.add(
+      ScaleEffect.to(
+        Vector2.all(1),
+        EffectController(duration: 0.36, curve: Curves.easeOutBack),
+        onComplete: completer.complete,
+      ),
     );
     return completer.future;
   }
@@ -829,34 +740,7 @@ class _AdditionDotComponent extends CircleComponent {
     }
   }
 
-  Future<void> animateTo({
-    required Vector2 targetPosition,
-    required double duration,
-    required double targetScale,
-    double delay = 0,
-  }) {
-    final completer = Completer<void>();
-    _addAxisAlignedMove(
-      targetPosition: targetPosition,
-      duration: duration,
-      delay: delay,
-      curve: Curves.easeInOutCubic,
-      onComplete: completer.complete,
-    );
-    add(
-      ScaleEffect.to(
-        Vector2.all(targetScale),
-        EffectController(
-          duration: duration * 0.92,
-          startDelay: delay,
-          curve: Curves.easeOutCubic,
-        ),
-      ),
-    );
-    return completer.future;
-  }
-
-  Future<void> revealInStaging({
+  Future<void> revealInGrid({
     required double duration,
     required double targetScale,
     double delay = 0,
@@ -885,56 +769,6 @@ class _AdditionDotComponent extends CircleComponent {
     );
     return completer.future;
   }
-
-  void _addAxisAlignedMove({
-    required Vector2 targetPosition,
-    required double duration,
-    required double delay,
-    required Curve curve,
-    void Function()? onComplete,
-  }) {
-    final startPosition = position.clone();
-    final horizontalDistance = (targetPosition.x - startPosition.x).abs();
-    final verticalDistance = (targetPosition.y - startPosition.y).abs();
-    final totalDistance = horizontalDistance + verticalDistance;
-
-    if (totalDistance == 0) {
-      onComplete?.call();
-      return;
-    }
-
-    if (horizontalDistance == 0 || verticalDistance == 0) {
-      add(
-        MoveEffect.to(
-          targetPosition,
-          EffectController(duration: duration, startDelay: delay, curve: curve),
-          onComplete: onComplete,
-        ),
-      );
-      return;
-    }
-
-    final bendPoint = Vector2(targetPosition.x, startPosition.y);
-    final horizontalDuration = duration * (horizontalDistance / totalDistance);
-    final verticalDuration = duration - horizontalDuration;
-
-    add(
-      SequenceEffect(<Effect>[
-        MoveEffect.to(
-          bendPoint,
-          EffectController(
-            duration: horizontalDuration,
-            startDelay: delay,
-            curve: curve,
-          ),
-        ),
-        MoveEffect.to(
-          targetPosition,
-          EffectController(duration: verticalDuration, curve: curve),
-        ),
-      ], onComplete: onComplete),
-    );
-  }
 }
 
 class _GridSpec {
@@ -958,16 +792,12 @@ class _SceneLayout {
     required this.gridOrigin,
     required this.gridSize,
     required this.targetPositions,
-    required this.stagingPositions,
     required this.dotRadius,
     required this.firstCountPosition,
     required this.secondCountPosition,
-    required this.firstEquationNumberPosition,
-    required this.secondEquationNumberPosition,
     required this.plusPosition,
     required this.equalsPosition,
     required this.resultPosition,
-    required this.equationPosition,
   });
 
   final int rows;
@@ -975,14 +805,10 @@ class _SceneLayout {
   final Vector2 gridOrigin;
   final Vector2 gridSize;
   final List<Vector2> targetPositions;
-  final List<Vector2> stagingPositions;
   final double dotRadius;
   final Vector2 firstCountPosition;
   final Vector2 secondCountPosition;
-  final Vector2 firstEquationNumberPosition;
-  final Vector2 secondEquationNumberPosition;
   final Vector2 plusPosition;
   final Vector2 equalsPosition;
   final Vector2 resultPosition;
-  final Vector2 equationPosition;
 }
