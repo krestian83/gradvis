@@ -49,5 +49,11 @@ const List<GameManifestEntry> builtInGameManifest = [
     factoryKey: 'subtraction_quiz_trinn4',
     enabled: true,
   ),
+  GameManifestEntry(
+    id: 'math_trinn3_level0_multiplication_quiz_trinn3',
+    slot: GameSlot(subject: Subject.math, trinn: 3, level: 0),
+    factoryKey: 'multiplication_quiz_trinn3',
+    enabled: true,
+  ),
   // [MINIGAME_MANIFEST_END]
 ];
