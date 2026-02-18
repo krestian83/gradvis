@@ -325,8 +325,9 @@ def update_manifest(
     return "\n".join(lines) + "\n"
 
 
-def build_presentation_template(class_name: str) -> str:
-    return f"""import 'package:flutter/material.dart';
+def build_presentation_template(class_name: str, subject: str) -> str:
+    if subject != "math":
+        return f"""import 'package:flutter/material.dart';
 
 import '../../../../../domain/game_interface.dart';
 
@@ -344,6 +345,72 @@ class {class_name} extends StatelessWidget implements GameWidget {{
         child: const Text('TODO: Implement {class_name}'),
       ),
     );
+  }}
+}}
+"""
+
+    return f"""import 'package:flutter/material.dart';
+
+import '../../../../../domain/game_interface.dart';
+import '../../../../../math_help/application/math_help_controller.dart';
+import '../../../../../math_help/application/math_help_scope.dart';
+import '../../../../../math_help/domain/math_help_context.dart';
+import '../../../../../math_help/domain/math_topic_family.dart';
+
+class {class_name} extends StatefulWidget implements GameWidget {{
+  @override
+  final ValueChanged<GameResult> onComplete;
+
+  const {class_name}({{super.key, required this.onComplete}});
+
+  @override
+  State<{class_name}> createState() => _{class_name}State();
+}}
+
+class _{class_name}State extends State<{class_name}> {{
+  MathHelpController? _mathHelpController;
+  bool _helpContextPublished = false;
+
+  @override
+  void didChangeDependencies() {{
+    super.didChangeDependencies();
+    _mathHelpController ??= MathHelpScope.maybeOf(context);
+    if (_helpContextPublished) return;
+    _helpContextPublished = true;
+    _publishMathHelpContext();
+  }}
+
+  @override
+  void dispose() {{
+    _mathHelpController?.clearContext();
+    super.dispose();
+  }}
+
+  @override
+  Widget build(BuildContext context) {{
+    return Center(
+      child: FilledButton(
+        onPressed: _completeGame,
+        child: const Text('TODO: Implement {class_name}'),
+      ),
+    );
+  }}
+
+  void _publishMathHelpContext() {{
+    _mathHelpController?.setContext(
+      MathHelpContext(
+        topicFamily: MathTopicFamily.arithmetic,
+        operation: 'addition',
+        operands: const [1, 2],
+        correctAnswer: 3,
+        label: 'TODO: Sett hjelpetekst for oppgaven',
+      ),
+    );
+  }}
+
+  void _completeGame() {{
+    _mathHelpController?.clearContext();
+    widget.onComplete(const GameResult(stars: 1, pointsEarned: 5));
   }}
 }}
 """
@@ -370,6 +437,43 @@ def build_test_template(
     slug: str,
     class_name: str,
 ) -> str:
+    if subject == "math":
+        return f"""import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:{package_name}/features/game/domain/game_interface.dart';
+import 'package:{package_name}/features/game/games/{subject}/trinn{trinn}/{slug}/presentation/{slug}_game.dart';
+import 'package:{package_name}/features/game/math_help/application/math_help_controller.dart';
+import 'package:{package_name}/features/game/math_help/application/math_help_scope.dart';
+
+void main() {{
+  testWidgets('{class_name} emits completion result and clears math help', (tester) async {{
+    final helpController = MathHelpController();
+    GameResult? result;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MathHelpScope(
+          controller: helpController,
+          child: Scaffold(
+            body: {class_name}(onComplete: (value) => result = value),
+          ),
+        ),
+      ),
+    );
+
+    expect(helpController.context, isNotNull);
+
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+
+    expect(result, isNotNull);
+    expect(result!.stars, 1);
+    expect(result!.pointsEarned, 5);
+    expect(helpController.context, isNull);
+  }});
+}}
+"""
+
     return f"""import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:{package_name}/features/game/domain/game_interface.dart';
@@ -533,7 +637,7 @@ def main() -> int:
         queue_new_file(
             writes,
             presentation_path,
-            build_presentation_template(class_name),
+            build_presentation_template(class_name, subject),
             args.force,
         )
         queue_new_file(

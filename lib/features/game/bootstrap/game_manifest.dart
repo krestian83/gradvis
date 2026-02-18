@@ -25,5 +25,23 @@ const List<GameManifestEntry> builtInGameManifest = [
     factoryKey: 'alphabet_sound_quiz',
     enabled: true,
   ),
+  GameManifestEntry(
+    id: 'math_trinn1_level0_math_helper_demo',
+    slot: GameSlot(subject: Subject.math, trinn: 1, level: 0),
+    factoryKey: 'math_helper_demo',
+    enabled: false,
+  ),
+  GameManifestEntry(
+    id: 'math_trinn1_level1_math_helper_showcase',
+    slot: GameSlot(subject: Subject.math, trinn: 1, level: 1),
+    factoryKey: 'math_helper_showcase',
+    enabled: true,
+  ),
+  GameManifestEntry(
+    id: 'math_trinn1_level0_addition_quiz',
+    slot: GameSlot(subject: Subject.math, trinn: 1, level: 0),
+    factoryKey: 'addition_quiz',
+    enabled: true,
+  ),
   // [MINIGAME_MANIFEST_END]
 ];

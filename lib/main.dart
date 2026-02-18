@@ -5,6 +5,7 @@ import 'app.dart';
 import 'core/routing/app_router.dart';
 import 'core/services/storage_service.dart';
 import 'features/game/bootstrap/register_builtin_games.dart';
+import 'features/game/math_help/visualizers/register_builtin_math_visualizers.dart';
 import 'features/levels/domain/level_repository.dart';
 import 'features/profile/domain/profile_repository.dart';
 import 'features/profile/domain/profile_state.dart';
@@ -20,6 +21,7 @@ void main() async {
   final levelRepo = LevelRepository(storage);
   final storeRepo = StoreRepository(storage);
   registerBuiltInGames();
+  registerBuiltInMathVisualizers();
 
   final router = buildRouter(
     profileState: profileState,

@@ -1,4 +1,4 @@
 interface:
   display_name: "Add Gradvis Minigame"
-  short_description: "Scaffold and register minigames with bounded reads"
-  default_prompt: "Use $add-gradvis-minigame to scaffold and register a new minigame in gradvis_v2."
+  short_description: "Scaffold/register minigames; auto-wire math_help for math"
+  default_prompt: "Use $add-gradvis-minigame to scaffold and register a new minigame in gradvis_v2, wiring math_help whenever subject=math."
