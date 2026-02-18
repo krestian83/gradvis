@@ -23,15 +23,15 @@ class SubtractionVisualizer extends MathVisualizer {
   static const _highlightStaggerDelaySeconds = 0.64;
   static const _removeDurationSeconds = 0.66;
   static const _removeStaggerDelaySeconds = 0.09;
-  static const _baseTenGroupScale = 1.24;
-  static const _baseTenGroupScaleDurationSeconds = 0.32;
-  static const _baseTenGroupGrowPause = Duration(seconds: 1);
+  static const _baseTenGroupPulseScale = 1.24;
+  static const _baseTenGroupPulseCycleDurationSeconds = 0.45;
+  static const _baseTenGroupPulseCycles = 4;
+  static const _secondOperandPlacePulseScale = 1.22;
   static const _baseTenGroupSlideDurationSeconds = 0.72;
   static const _baseTenSlidePadding = 120.0;
   static const _baseTenGroupPause = Duration(seconds: 2);
   static const _beforeResultColorPause = Duration(seconds: 1);
   static const _phasePause = Duration(milliseconds: 1050);
-  static const _loopPause = Duration(seconds: 3);
   static const _slowdownFactor = 1.3;
   static const _answerSlideDurationSeconds = 0.68;
   static const _answerPrePulseScale = 1.75;
@@ -39,7 +39,8 @@ class SubtractionVisualizer extends MathVisualizer {
   static const _answerPulseDurationSeconds = 4.0;
   static const _answerPulseScale = 1.15;
   static const _answerPulseCycles = 6;
-  static const _baseTenDotFillFactor = 0.9;
+  static const _baseTenDotFillFactor = 0.82;
+  static const _baseTenMinSectionHeight = 14.0;
 
   static const _baseDotColor = Color(0xFF1B6DE2);
   static const _removalDotColor = Color(0xFFE53935);
@@ -49,6 +50,7 @@ class SubtractionVisualizer extends MathVisualizer {
   static const _equationColor = Color(0xFF0A2463);
 
   final _tokens = <_SubtractionToken>[];
+  final _secondOperandPlacePulseLabels = <TextComponent>[];
 
   bool _disposed = false;
   bool _isAnimating = false;
@@ -216,7 +218,6 @@ class SubtractionVisualizer extends MathVisualizer {
       if (_disposed) {
         return;
       }
-      await Future<void>.delayed(_scaledDuration(_loopPause));
     }
   }
 
@@ -249,9 +250,6 @@ class SubtractionVisualizer extends MathVisualizer {
       }
 
       await _completeSubtractionToAnswerState();
-      if (!await _pauseForNextStep()) {
-        return;
-      }
     } finally {
       _isAnimating = false;
     }
@@ -381,6 +379,8 @@ class SubtractionVisualizer extends MathVisualizer {
   }
 
   void _resetScene() {
+    _clearSecondOperandPlacePulseLabels();
+
     for (var index = 0; index < _tokens.length; index++) {
       final token = _tokens[index];
       token.clearEffects();
@@ -452,6 +452,14 @@ class SubtractionVisualizer extends MathVisualizer {
     for (final effect in effects) {
       effect.removeFromParent();
     }
+  }
+
+  void _clearSecondOperandPlacePulseLabels() {
+    for (final label in _secondOperandPlacePulseLabels) {
+      _removeEffects(label);
+      label.removeFromParent();
+    }
+    _secondOperandPlacePulseLabels.clear();
   }
 
   void _applyLayoutPreservingState() {
@@ -527,7 +535,7 @@ class SubtractionVisualizer extends MathVisualizer {
     final bottomPadding = math.max(10.0, height * 0.06);
     final equationY = math.max(30.0, height * 0.14);
 
-    final gridTop = height * 0.34;
+    final gridTop = height * (_usesBaseTenBlocks ? 0.31 : 0.34);
     final gridBottom = height - bottomPadding;
 
     final gridRect = Rect.fromLTWH(
@@ -541,19 +549,58 @@ class SubtractionVisualizer extends MathVisualizer {
         ? _baseTenTokenLayouts(rect: gridRect)
         : _dotTokenLayouts(rect: gridRect);
 
-    final equationCenterX = width / 2;
-    final equationStep = math.max(26.0, math.min(46.0, width * 0.09));
+    final equationInset = math.max(8.0, width * 0.04);
+    final baseGap = math.max(8.0, math.min(16.0, width * 0.035));
+    final firstWidth = _equationTextWidth(
+      text: '$_minuend',
+      fontSize: 32,
+      fontWeight: FontWeight.w700,
+    );
+    final minusWidth = _equationTextWidth(
+      text: '-',
+      fontSize: 34,
+      fontWeight: FontWeight.w700,
+    );
+    final secondWidth = _equationTextWidth(
+      text: '$_subtrahend',
+      fontSize: 32,
+      fontWeight: FontWeight.w700,
+    );
+    final equalsWidth = _equationTextWidth(
+      text: '=',
+      fontSize: 34,
+      fontWeight: FontWeight.w700,
+    );
+    final resultWidth = _equationTextWidth(
+      text: '$_difference',
+      fontSize: 34,
+      fontWeight: FontWeight.w700,
+    );
+    final widthsSum =
+        firstWidth + minusWidth + secondWidth + equalsWidth + resultWidth;
+    final availableEquationWidth = math.max(1.0, width - (equationInset * 2));
+    final gapUpperBound = math.max(
+      0.0,
+      (availableEquationWidth - widthsSum) / 4,
+    );
+    final resolvedGap = math.min(baseGap, gapUpperBound);
+    final totalEquationWidth = widthsSum + (resolvedGap * 4);
+    var cursorX = (width - totalEquationWidth) * 0.5;
     final firstEquationNumberPosition = Vector2(
-      equationCenterX - (equationStep * 2.0),
+      cursorX + (firstWidth * 0.5),
       equationY,
     );
-    final minusPosition = Vector2(equationCenterX - equationStep, equationY);
-    final secondEquationNumberPosition = Vector2(equationCenterX, equationY);
-    final equalsPosition = Vector2(equationCenterX + equationStep, equationY);
-    final resultPosition = Vector2(
-      equationCenterX + (equationStep * 2.2),
+    cursorX += firstWidth + resolvedGap;
+    final minusPosition = Vector2(cursorX + (minusWidth * 0.5), equationY);
+    cursorX += minusWidth + resolvedGap;
+    final secondEquationNumberPosition = Vector2(
+      cursorX + (secondWidth * 0.5),
       equationY,
     );
+    cursorX += secondWidth + resolvedGap;
+    final equalsPosition = Vector2(cursorX + (equalsWidth * 0.5), equationY);
+    cursorX += equalsWidth + resolvedGap;
+    final resultPosition = Vector2(cursorX + (resultWidth * 0.5), equationY);
 
     return _SceneLayout(
       rows: gridSpec.rows,
@@ -569,6 +616,27 @@ class SubtractionVisualizer extends MathVisualizer {
       equalsPosition: equalsPosition,
       resultPosition: resultPosition,
     );
+  }
+
+  double _equationTextWidth({
+    required String text,
+    required double fontSize,
+    required FontWeight fontWeight,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          fontFamily: 'Fredoka One',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    );
+    painter.layout();
+    return painter.width;
   }
 
   (_GridSpec, List<_TokenLayout>) _dotTokenLayouts({required Rect rect}) {
@@ -600,7 +668,7 @@ class SubtractionVisualizer extends MathVisualizer {
 
   (_GridSpec, List<_TokenLayout>) _baseTenTokenLayouts({required Rect rect}) {
     final horizontalInset = math.max(6.0, rect.width * 0.04);
-    final verticalInset = math.max(6.0, rect.height * 0.06);
+    final verticalInset = math.max(6.0, rect.height * 0.05);
     final usableRect = Rect.fromLTWH(
       rect.left + horizontalInset,
       rect.top + verticalInset,
@@ -609,27 +677,29 @@ class SubtractionVisualizer extends MathVisualizer {
     );
 
     final sectionGap = math.max(4.0, verticalInset * 0.4);
-    final sectionHeight = math.max(
-      16.0,
-      (usableRect.height - (sectionGap * 2)) / 3,
+    final sectionHeights = _resolveBaseTenSectionHeights(
+      availableHeight: math.max(18.0, usableRect.height - (sectionGap * 2)),
+      hundredsRows: _gridRows(count: _displayHundreds, maxColumns: 3),
+      tensRows: _gridRows(count: _displayTens, maxColumns: 5),
+      onesRows: _gridRows(count: _displayOnes, maxColumns: 10),
     );
     final hundredsRect = Rect.fromLTWH(
       usableRect.left,
       usableRect.top,
       usableRect.width,
-      sectionHeight,
+      sectionHeights.hundreds,
     );
     final tensRect = Rect.fromLTWH(
       usableRect.left,
       hundredsRect.bottom + sectionGap,
       usableRect.width,
-      sectionHeight,
+      sectionHeights.tens,
     );
     final onesRect = Rect.fromLTWH(
       usableRect.left,
       tensRect.bottom + sectionGap,
       usableRect.width,
-      math.max(16.0, usableRect.bottom - (tensRect.bottom + sectionGap)),
+      sectionHeights.ones,
     );
     final radii = _resolveBaseTenDotRadii(
       hundredsRect: hundredsRect,
@@ -653,6 +723,59 @@ class SubtractionVisualizer extends MathVisualizer {
       height: rect.height,
     );
     return (gridSpec, tokenLayouts);
+  }
+
+  ({double hundreds, double tens, double ones}) _resolveBaseTenSectionHeights({
+    required double availableHeight,
+    required int hundredsRows,
+    required int tensRows,
+    required int onesRows,
+  }) {
+    final minSectionHeight = math.min(
+      _baseTenMinSectionHeight,
+      availableHeight / 3,
+    );
+    final minTotalHeight = minSectionHeight * 3;
+    final extraHeight = math.max(0.0, availableHeight - minTotalHeight);
+    final hundredsWeight = _sectionHeightWeight(rows: hundredsRows, scale: 4);
+    final tensWeight = _sectionHeightWeight(rows: tensRows, scale: 2);
+    final onesWeight = _sectionHeightWeight(rows: onesRows, scale: 1);
+    final totalWeight = hundredsWeight + tensWeight + onesWeight;
+    if (totalWeight <= 0) {
+      final equalHeight = availableHeight / 3;
+      return (
+        hundreds: equalHeight,
+        tens: equalHeight,
+        ones: availableHeight - (equalHeight * 2),
+      );
+    }
+    final hundredsHeight =
+        minSectionHeight + (extraHeight * (hundredsWeight / totalWeight));
+    final tensHeight =
+        minSectionHeight + (extraHeight * (tensWeight / totalWeight));
+    return (
+      hundreds: hundredsHeight,
+      tens: tensHeight,
+      ones: math.max(
+        minSectionHeight,
+        availableHeight - hundredsHeight - tensHeight,
+      ),
+    );
+  }
+
+  double _sectionHeightWeight({required int rows, required int scale}) {
+    if (rows <= 0) {
+      return 1.0;
+    }
+    return rows * scale.toDouble();
+  }
+
+  int _gridRows({required int count, required int maxColumns}) {
+    if (count <= 0) {
+      return 0;
+    }
+    final columns = math.max(1, math.min(maxColumns, count));
+    return (count / columns).ceil();
   }
 
   ({double hundreds, double tens, double ones}) _resolveBaseTenDotRadii({
@@ -1008,25 +1131,36 @@ class SubtractionVisualizer extends MathVisualizer {
       }
 
       final group = groups[index];
+      final pulseDuration = _scaledSeconds(
+        _baseTenGroupPulseCycleDurationSeconds,
+      );
+      for (
+        var pulseIndex = 0;
+        pulseIndex < _baseTenGroupPulseCycles;
+        pulseIndex++
+      ) {
+        await Future.wait(<Future<void>>[
+          ...group.map(
+            (token) => token.pulse(
+              duration: pulseDuration,
+              targetScale: _baseTenGroupPulseScale,
+            ),
+          ),
+          _pulseSecondOperandPlacesForKind(
+            kind: group.first.kind,
+            duration: pulseDuration,
+          ),
+        ]);
+        if (_disposed) {
+          return;
+        }
+      }
+      if (_disposed) {
+        return;
+      }
+
       for (final token in group) {
         token.hideValueLabel();
-      }
-
-      await Future.wait(
-        group.map(
-          (token) => token.scaleTo(
-            duration: _scaledSeconds(_baseTenGroupScaleDurationSeconds),
-            targetScale: _baseTenGroupScale,
-          ),
-        ),
-      );
-      if (_disposed) {
-        return;
-      }
-
-      await Future<void>.delayed(_baseTenGroupGrowPause);
-      if (_disposed) {
-        return;
       }
 
       await Future.wait(
@@ -1053,6 +1187,133 @@ class SubtractionVisualizer extends MathVisualizer {
     }
   }
 
+  Future<void> _pulseSecondOperandPlacesForKind({
+    required _TokenKind kind,
+    required double duration,
+  }) async {
+    if (!_usesBaseTenBlocks || !_isSecondOperandVisible) {
+      return;
+    }
+    final highestPlaceFromRight = switch (kind) {
+      _TokenKind.ones => 0,
+      _TokenKind.tens => 1,
+      _TokenKind.hundreds => 2,
+      _TokenKind.dot => -1,
+    };
+    if (highestPlaceFromRight < 0) {
+      return;
+    }
+
+    final text = _secondCountLabel.text;
+    if (text.isEmpty) {
+      return;
+    }
+
+    final digitCount = text.length;
+    final placeValuesFromRight = List<int>.generate(
+      highestPlaceFromRight + 1,
+      (index) => index,
+    );
+    final pulseDigitIndexes = <int>{};
+    for (final placeFromRight in placeValuesFromRight) {
+      if (placeFromRight >= digitCount) {
+        continue;
+      }
+      pulseDigitIndexes.add(digitCount - 1 - placeFromRight);
+    }
+    if (pulseDigitIndexes.isEmpty) {
+      return;
+    }
+
+    _clearSecondOperandPlacePulseLabels();
+    final overlayLabels = List<TextComponent>.generate(digitCount, (
+      digitIndex,
+    ) {
+      return TextComponent(
+        text: text[digitIndex],
+        anchor: Anchor.center,
+        position: _secondOperandDigitPosition(
+          digitIndex: digitIndex,
+          digitCount: digitCount,
+        ),
+        scale: _secondCountLabel.scale.clone(),
+        textRenderer: mathHelpTextPaint(
+          color: _secondLabelColor,
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    });
+    final pulseLabels = <TextComponent>[];
+    for (var index = 0; index < overlayLabels.length; index++) {
+      final overlayLabel = overlayLabels[index];
+      _secondOperandPlacePulseLabels.add(overlayLabel);
+      add(overlayLabel);
+      if (pulseDigitIndexes.contains(index)) {
+        pulseLabels.add(overlayLabel);
+      }
+    }
+
+    final baseScale = _secondCountLabel.scale.clone();
+    _removeEffects(_secondCountLabel);
+    _secondCountLabel.scale = Vector2.zero();
+
+    void removeOverlayLabels() {
+      for (final label in overlayLabels) {
+        label.removeFromParent();
+      }
+      _secondOperandPlacePulseLabels.clear();
+    }
+
+    final halfDuration = math.max(0.001, duration * 0.5);
+    await Future.wait(
+      pulseLabels.map(
+        (pulseLabel) => _scaleLabelTo(
+          label: pulseLabel,
+          targetScale: _secondOperandPlacePulseScale,
+          duration: halfDuration,
+          curve: Curves.easeOutBack,
+        ),
+      ),
+    );
+    if (_disposed) {
+      removeOverlayLabels();
+      return;
+    }
+
+    await Future.wait(
+      pulseLabels.map(
+        (pulseLabel) => _scaleLabelTo(
+          label: pulseLabel,
+          targetScale: 1,
+          duration: halfDuration,
+          curve: Curves.easeInOut,
+        ),
+      ),
+    );
+    removeOverlayLabels();
+    if (_isSecondOperandVisible) {
+      _secondCountLabel.scale = baseScale;
+    }
+  }
+
+  Vector2 _secondOperandDigitPosition({
+    required int digitIndex,
+    required int digitCount,
+  }) {
+    if (digitCount <= 0) {
+      return _secondCountLabel.position.clone();
+    }
+    final measuredWidth = _secondCountLabel.size.x;
+    final labelWidth = measuredWidth > 1 ? measuredWidth : digitCount * 18;
+    final digitWidth = labelWidth / digitCount;
+    final leftEdge = _secondCountLabel.position.x - (labelWidth * 0.5);
+    return Vector2(
+      leftEdge + (digitWidth * digitIndex) + (digitWidth * 0.5),
+      _secondCountLabel.position.y,
+    );
+  }
+
   List<List<_SubtractionToken>> _orderedBaseTenRemovalGroups(
     List<_SubtractionToken> removalTokens,
   ) {
@@ -1077,6 +1338,7 @@ class SubtractionVisualizer extends MathVisualizer {
       return;
     }
     _isSecondOperandVisible = false;
+    _clearSecondOperandPlacePulseLabels();
     _removeEffects(_secondCountLabel);
     _secondCountLabel.scale = Vector2.zero();
   }
@@ -1346,12 +1608,16 @@ class _SubtractionToken {
     }
   }
 
-  Future<void> pulse({required double duration, double delay = 0}) {
+  Future<void> pulse({
+    required double duration,
+    double delay = 0,
+    double targetScale = 1.18,
+  }) {
     final completer = Completer<void>();
     component.add(
       SequenceEffect(<Effect>[
         ScaleEffect.to(
-          Vector2.all(1.18),
+          Vector2.all(targetScale),
           EffectController(
             duration: duration * 0.5,
             startDelay: delay,

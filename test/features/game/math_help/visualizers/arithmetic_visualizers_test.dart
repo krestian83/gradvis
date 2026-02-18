@@ -220,6 +220,49 @@ void main() {
     },
   );
 
+  test(
+    'SubtractionVisualizer keeps ones visible with looser base-10 spacing',
+    () async {
+      final visualizer = await _loadVisualizer(
+        SubtractionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'subtraction',
+            operands: const [363, 90],
+            correctAnswer: 273,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      final circles = visualizer.children.whereType<CircleComponent>().toList();
+      final radii = circles.map((dot) => dot.radius).toSet().toList()
+        ..sort((left, right) => right.compareTo(left));
+      expect(radii.length, 3);
+
+      final tensRadius = radii[1];
+      final onesRadius = radii[2];
+      final tensDots = circles
+          .where((dot) => (dot.radius - tensRadius).abs() < 0.0001)
+          .toList();
+
+      var minCenterDistance = double.infinity;
+      for (var i = 0; i < tensDots.length; i++) {
+        for (var j = i + 1; j < tensDots.length; j++) {
+          final distance = tensDots[i].position.distanceTo(
+            tensDots[j].position,
+          );
+          if (distance < minCenterDistance) {
+            minCenterDistance = distance;
+          }
+        }
+      }
+
+      expect(onesRadius, greaterThanOrEqualTo(3.0));
+      expect(minCenterDistance - (tensRadius * 2), greaterThan(2.0));
+    },
+  );
+
   test('SubtractionVisualizer clamps operands for base-10 mode', () async {
     final visualizer = await _loadVisualizer(
       SubtractionVisualizer(
@@ -288,6 +331,38 @@ void main() {
         lessThan(0.01),
       );
       expect(minuendLabel.position.x, lessThan(subtrahendLabel.position.x));
+    },
+  );
+
+  test(
+    'SubtractionVisualizer centers minus between operand text bounds',
+    () async {
+      final visualizer = await _loadVisualizer(
+        SubtractionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'subtraction',
+            operands: const [363, 90],
+            correctAnswer: 273,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      final labels = visualizer.children.whereType<TextComponent>();
+      final minuendLabel = _topEquationLabel(labels, '363');
+      final subtrahendLabel = _topEquationLabel(labels, '90');
+      final minusLabel = _topEquationLabel(labels, '-');
+
+      final minuendRight =
+          minuendLabel.position.x + (minuendLabel.size.x * 0.5);
+      final subtrahendLeft =
+          subtrahendLabel.position.x - (subtrahendLabel.size.x * 0.5);
+      final midpoint = (minuendRight + subtrahendLeft) * 0.5;
+
+      expect(minusLabel.position.x, greaterThan(minuendRight));
+      expect(minusLabel.position.x, lessThan(subtrahendLeft));
+      expect((minusLabel.position.x - midpoint).abs(), lessThan(0.6));
     },
   );
 
