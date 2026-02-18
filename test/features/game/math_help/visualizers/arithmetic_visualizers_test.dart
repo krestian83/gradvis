@@ -20,6 +20,15 @@ TextComponent _topEquationLabel(Iterable<TextComponent> labels, String text) {
   return matches.first;
 }
 
+Iterable<TextComponent> _textDescendants(Component root) sync* {
+  if (root is TextComponent) {
+    yield root;
+  }
+  for (final child in root.children) {
+    yield* _textDescendants(child);
+  }
+}
+
 void main() {
   test('AdditionVisualizer builds merged dot scene', () async {
     final visualizer = await _loadVisualizer(
@@ -155,6 +164,33 @@ void main() {
         visualizer.children.whereType<RectangleComponent>().length,
         greaterThan(1),
       );
+    },
+  );
+
+  test(
+    'SubtractionVisualizer uses 100, 10 and 1 block labels in base-10 mode',
+    () async {
+      final visualizer = await _loadVisualizer(
+        SubtractionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'subtraction',
+            operands: const [342, 145],
+            correctAnswer: 197,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      expect(visualizer.children.whereType<CircleComponent>(), isEmpty);
+      expect(
+        visualizer.children.whereType<RectangleComponent>().length,
+        greaterThan(1),
+      );
+      final texts = _textDescendants(visualizer).toList();
+      expect(texts.any((component) => component.text == '100'), isTrue);
+      expect(texts.any((component) => component.text == '10'), isTrue);
+      expect(texts.any((component) => component.text == '1'), isTrue);
     },
   );
 
