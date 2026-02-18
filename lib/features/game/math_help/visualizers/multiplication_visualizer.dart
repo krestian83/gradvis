@@ -23,9 +23,7 @@ class MultiplicationVisualizer extends MathVisualizer {
   static const _resultPulseDurationSeconds = 0.27;
 
   static const _firstOperandColor = Color(0xFF1B4F9A);
-  static const _secondOperandColor = Color(0xFFB36A00);
   static const _equationColor = Color(0xFF0A2463);
-  static const _resultColor = Color(0xFF2E7D32);
 
   late final int _targetRows;
   late final int _targetColumns;
@@ -204,7 +202,7 @@ class MultiplicationVisualizer extends MathVisualizer {
       anchor: Anchor.center,
       scale: Vector2.zero(),
       textRenderer: mathHelpTextPaint(
-        color: _secondOperandColor,
+        color: _firstOperandColor,
         fontSize: 32,
         fontWeight: FontWeight.w700,
       ),
@@ -228,7 +226,7 @@ class MultiplicationVisualizer extends MathVisualizer {
       anchor: Anchor.center,
       scale: Vector2.zero(),
       textRenderer: mathHelpTextPaint(
-        color: _resultColor,
+        color: _firstOperandColor,
         fontSize: 34,
         fontWeight: FontWeight.w700,
       ),
@@ -564,7 +562,7 @@ class MultiplicationVisualizer extends MathVisualizer {
     final double width = size.x > 0 ? size.x : _fallbackWidth;
     final double height = size.y > 0 ? size.y : _fallbackHeight;
     final double horizontalPadding = math.max(12, width * 0.06);
-    final double topPadding = height * 0.34;
+    final double topPadding = height * 0.38;
     final double bottomPadding = math.max(10, height * 0.06);
     final double arenaWidth = math.max(0, width - (horizontalPadding * 2));
     final double arenaHeight = math.max(
@@ -641,7 +639,7 @@ class MultiplicationVisualizer extends MathVisualizer {
     _secondOperandLabel
       ..text = '$_targetColumns'
       ..textRenderer = mathHelpTextPaint(
-        color: _secondOperandColor,
+        color: _firstOperandColor,
         fontSize: 32,
         fontWeight: FontWeight.w700,
       )
@@ -656,7 +654,7 @@ class MultiplicationVisualizer extends MathVisualizer {
     _resultLabel
       ..text = '${context.correctAnswer}'
       ..textRenderer = mathHelpTextPaint(
-        color: _resultColor,
+        color: _firstOperandColor,
         fontSize: 34,
         fontWeight: FontWeight.w700,
       )
@@ -714,7 +712,7 @@ class MultiplicationVisualizer extends MathVisualizer {
     _resultLabel
       ..text = '${context.correctAnswer}'
       ..textRenderer = mathHelpTextPaint(
-        color: _resultColor,
+        color: _firstOperandColor,
         fontSize: 34,
         fontWeight: FontWeight.w700,
       )

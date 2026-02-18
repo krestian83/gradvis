@@ -14,6 +14,12 @@ Future<T> _loadVisualizer<T extends MathVisualizer>(T visualizer) async {
   return visualizer;
 }
 
+TextComponent _topEquationLabel(Iterable<TextComponent> labels, String text) {
+  final matches = labels.where((component) => component.text == text).toList()
+    ..sort((left, right) => left.position.y.compareTo(right.position.y));
+  return matches.first;
+}
+
 void main() {
   test('AdditionVisualizer builds merged dot scene', () async {
     final visualizer = await _loadVisualizer(
@@ -216,21 +222,12 @@ void main() {
       addTearDown(visualizer.onRemove);
 
       expect(visualizer.children.whereType<CircleComponent>().length, 3);
-      final firstOperandLabel = visualizer.children
-          .whereType<TextComponent>()
-          .firstWhere((component) => component.text == '3');
-      final multiplicationLabel = visualizer.children
-          .whereType<TextComponent>()
-          .firstWhere((component) => component.text == 'x');
-      final secondOperandLabel = visualizer.children
-          .whereType<TextComponent>()
-          .firstWhere((component) => component.text == '4');
-      final equalsLabel = visualizer.children
-          .whereType<TextComponent>()
-          .firstWhere((component) => component.text == '=');
-      final resultLabel = visualizer.children
-          .whereType<TextComponent>()
-          .firstWhere((component) => component.text == '12');
+      final textLabels = visualizer.children.whereType<TextComponent>();
+      final firstOperandLabel = _topEquationLabel(textLabels, '3');
+      final multiplicationLabel = _topEquationLabel(textLabels, 'x');
+      final secondOperandLabel = _topEquationLabel(textLabels, '4');
+      final equalsLabel = _topEquationLabel(textLabels, '=');
+      final resultLabel = _topEquationLabel(textLabels, '12');
 
       expect(
         (firstOperandLabel.position.y - multiplicationLabel.position.y).abs(),

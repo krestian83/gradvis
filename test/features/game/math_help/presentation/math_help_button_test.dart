@@ -104,7 +104,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('math-help-overlay')), findsOneWidget);
-    expect(find.text('1 + 2'), findsOneWidget);
+    expect(find.text('Visualisering'), findsOneWidget);
     expect(find.byTooltip('Lukk hjelpevindu'), findsOneWidget);
   });
 }

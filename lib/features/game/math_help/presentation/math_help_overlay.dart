@@ -17,9 +17,6 @@ class MathHelpOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = helpContext.label?.trim();
-    final header = label == null || label.isEmpty ? 'Matematikkhjelp' : label;
-
     return SafeArea(
       child: Container(
         key: const Key('math-help-overlay'),
@@ -38,39 +35,33 @@ class MathHelpOverlay extends StatelessWidget {
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    header,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Text(
+                    'Visualisering',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       color: const Color(0xFF0A2463),
                       fontFamily: 'Fredoka One',
-                      fontSize: 30,
+                      fontSize: 36,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-                IconButton(
-                  tooltip: 'Lukk hjelpevindu',
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            if (label != null && label.isNotEmpty)
-              Text(
-                'Visualisering',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF355070),
-                  fontFamily: 'Fredoka One',
-                  fontWeight: FontWeight.w700,
-                ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      tooltip: 'Lukk hjelpevindu',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ),
+                ],
               ),
+            ),
             const SizedBox(height: 14),
             SizedBox(
               height: 260,
