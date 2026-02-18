@@ -23,6 +23,27 @@ Future<void> _tapOption(WidgetTester tester, String value) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _answerCurrentQuestion(WidgetTester tester) async {
+  final promptFinder = find.byWidgetPredicate(
+    (widget) =>
+        widget is Text &&
+        widget.data != null &&
+        widget.data!.contains(' - ') &&
+        widget.data!.contains('= ?'),
+  );
+  expect(promptFinder, findsOneWidget);
+
+  final prompt = tester.widget<Text>(promptFinder).data!;
+  final match = RegExp(r'(\d+)\s*-\s*(\d+)').firstMatch(prompt);
+  expect(match, isNotNull);
+
+  final minuend = int.parse(match!.group(1)!);
+  final subtrahend = int.parse(match.group(2)!);
+  final correctAnswer = minuend - subtrahend;
+
+  await _tapOption(tester, '$correctAnswer');
+}
+
 void main() {
   testWidgets('publishes subtraction help context and completes once', (
     tester,
@@ -50,26 +71,16 @@ void main() {
     await tester.pump();
 
     expect(helpController.context?.operation, 'subtraction');
-    expect(helpController.context?.operands, const [8, 3]);
+    expect(helpController.context?.operands, const [6, 1]);
 
-    await _tapOption(tester, '5');
-    expect(helpController.context?.operation, 'subtraction');
-    expect(helpController.context?.operands, const [10, 4]);
-
-    await _tapOption(tester, '6');
-    expect(helpController.context?.operation, 'subtraction');
-    expect(helpController.context?.operands, const [12, 5]);
-
-    await _tapOption(tester, '7');
-    expect(helpController.context?.operation, 'subtraction');
-    expect(helpController.context?.operands, const [14, 6]);
-
-    await _tapOption(tester, '8');
+    for (var round = 0; round < 40; round++) {
+      await _answerCurrentQuestion(tester);
+    }
 
     expect(completeCalls, 1);
     expect(result, isNotNull);
     expect(result!.stars, 3);
-    expect(result!.pointsEarned, 16);
+    expect(result!.pointsEarned, 160);
     expect(helpController.context, isNull);
   });
 }

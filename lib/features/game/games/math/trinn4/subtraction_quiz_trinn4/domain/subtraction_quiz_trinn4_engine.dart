@@ -1,9 +1,9 @@
-class SubtractionQuizQuestion {
+class SubtractionQuizTrinn4Question {
   final int minuend;
   final int subtrahend;
   final int correctAnswer;
 
-  const SubtractionQuizQuestion({
+  const SubtractionQuizTrinn4Question({
     required this.minuend,
     required this.subtrahend,
     required this.correctAnswer,
@@ -14,30 +14,40 @@ class SubtractionQuizQuestion {
   String get helpLabel => '$minuend - $subtrahend = $correctAnswer';
 }
 
-class SubtractionQuizEngine {
-  const SubtractionQuizEngine();
+class SubtractionQuizTrinn4Engine {
+  const SubtractionQuizTrinn4Engine();
 
-  List<SubtractionQuizQuestion> buildQuestions() {
-    final questions = <SubtractionQuizQuestion>[];
+  List<SubtractionQuizTrinn4Question> buildQuestions() {
+    final questions = <SubtractionQuizTrinn4Question>[];
 
-    for (var minuend = 6; minuend <= 13; minuend++) {
-      for (var subtrahend = 1; subtrahend <= 5; subtrahend++) {
+    for (var minuend = 12; minuend <= 20; minuend++) {
+      for (var subtrahend = 2; subtrahend <= 20; subtrahend++) {
+        if (subtrahend >= minuend) {
+          continue;
+        }
+        final needsBorrowing = (minuend % 10) < (subtrahend % 10);
+        if (!needsBorrowing) {
+          continue;
+        }
         questions.add(
-          SubtractionQuizQuestion(
+          SubtractionQuizTrinn4Question(
             minuend: minuend,
             subtrahend: subtrahend,
             correctAnswer: minuend - subtrahend,
           ),
         );
+        if (questions.length == 40) {
+          return questions;
+        }
       }
     }
 
     return questions;
   }
 
-  List<int> buildOptions(SubtractionQuizQuestion question) {
+  List<int> buildOptions(SubtractionQuizTrinn4Question question) {
     final options = <int>{question.correctAnswer};
-    const offsets = [-3, -2, -1, 1, 2, 3, 4];
+    const offsets = [-6, -4, -2, 2, 4, 6, 8];
 
     for (final offset in offsets) {
       final candidate = question.correctAnswer + offset;

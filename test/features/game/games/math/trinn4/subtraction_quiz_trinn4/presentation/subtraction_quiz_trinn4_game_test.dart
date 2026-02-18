@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gradvis_v2/features/game/domain/game_interface.dart';
-import 'package:gradvis_v2/features/game/games/math/trinn1/addition_quiz/presentation/addition_quiz_game.dart';
+import 'package:gradvis_v2/features/game/games/math/trinn4/subtraction_quiz_trinn4/presentation/subtraction_quiz_trinn4_game.dart';
 import 'package:gradvis_v2/features/game/math_help/application/math_help_controller.dart';
 import 'package:gradvis_v2/features/game/math_help/application/math_help_scope.dart';
 
 Future<void> _tapOption(WidgetTester tester, String value) async {
-  final finder = find.byKey(ValueKey('addition-quiz-option-$value'));
+  final finder = find.byKey(ValueKey('subtraction-quiz-trinn4-option-$value'));
   expect(finder, findsOneWidget);
 
   VoidCallback? onPressed;
@@ -28,26 +28,24 @@ Future<void> _answerCurrentQuestion(WidgetTester tester) async {
     (widget) =>
         widget is Text &&
         widget.data != null &&
-        widget.data!.contains(' + ') &&
+        widget.data!.contains(' - ') &&
         widget.data!.contains('= ?'),
   );
   expect(promptFinder, findsOneWidget);
 
   final prompt = tester.widget<Text>(promptFinder).data!;
-  final match = RegExp(r'(\d+)\s*\+\s*(\d+)').firstMatch(prompt);
+  final match = RegExp(r'(\d+)\s*-\s*(\d+)').firstMatch(prompt);
   expect(match, isNotNull);
 
-  final leftOperand = int.parse(match!.group(1)!);
-  final rightOperand = int.parse(match.group(2)!);
-  final correctAnswer = leftOperand + rightOperand;
+  final minuend = int.parse(match!.group(1)!);
+  final subtrahend = int.parse(match.group(2)!);
+  final correctAnswer = minuend - subtrahend;
 
   await _tapOption(tester, '$correctAnswer');
 }
 
 void main() {
-  testWidgets('publishes addition help context and completes once', (
-    tester,
-  ) async {
+  testWidgets('publishes help context and completes once', (tester) async {
     final helpController = MathHelpController();
     GameResult? result;
     var completeCalls = 0;
@@ -57,7 +55,7 @@ void main() {
         home: MathHelpScope(
           controller: helpController,
           child: Scaffold(
-            body: AdditionQuizGame(
+            body: SubtractionQuizTrinn4Game(
               feedbackDelay: const Duration(milliseconds: 1),
               onComplete: (value) {
                 completeCalls += 1;
@@ -70,8 +68,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(helpController.context?.operation, 'addition');
-    expect(helpController.context?.operands, const [1, 1]);
+    expect(helpController.context?.operation, 'subtraction');
+    expect(helpController.context?.operands, const [12, 3]);
 
     for (var round = 0; round < 40; round++) {
       await _answerCurrentQuestion(tester);
