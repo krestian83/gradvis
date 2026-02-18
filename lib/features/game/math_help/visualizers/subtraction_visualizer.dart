@@ -8,52 +8,96 @@ import 'package:flutter/material.dart';
 import '../presentation/math_help_visualizer_theme.dart';
 import '../presentation/math_visualizer.dart';
 
-/// Number-line visualizer for subtraction contexts.
+/// Dot-grid visualizer for subtraction contexts.
 class SubtractionVisualizer extends MathVisualizer {
-  static const _baseTickColor = Color(0xFF6382A8);
-  static const _activeTickColor = Color(0xFFE63973);
-  static const _markerColor = Color(0xFFB80C4D);
-  static const _lineColor = Color(0xFF274C77);
-
-  static const _linePadding = 44.0;
-  static const _lineThickness = 4.0;
-  static const _tickHeight = 28.0;
-  static const _tickWidth = 3.0;
-  static const _loopPause = Duration(seconds: 2);
+  static const _maxOperand = 20;
   static const _fallbackWidth = 320.0;
   static const _fallbackHeight = 220.0;
+  static const _dotRadiusFactor = 0.22;
+  static const _minDotRadius = 3.6;
+  static const _removedDotScale = 0.5;
+  static const _countSlideDurationSeconds = 0.84;
+  static const _countSlideStaggerSeconds = 0.18;
+  static const _highlightPulseDurationSeconds = 0.54;
+  static const _highlightStaggerDelaySeconds = 0.08;
+  static const _removeDurationSeconds = 0.66;
+  static const _removeStaggerDelaySeconds = 0.09;
+  static const _colorMorphDuration = Duration(milliseconds: 850);
+  static const _phasePause = Duration(milliseconds: 1050);
+  static const _loopPause = Duration(seconds: 3);
+  static const _countLabelMinGapMultiplier = 4.8;
 
-  final _ticks = <int, RectangleComponent>{};
-  late final RectangleComponent _numberLine;
-  late final PolygonComponent _marker;
-  late final TextComponent _answerLabel;
+  static const _baseDotColor = Color(0xFF1B6DE2);
+  static const _removalDotColor = Color(0xFFE53935);
+  static const _remainingDotColor = Color(0xFF2E7D32);
+  static const _firstLabelColor = Color(0xFF1B4F9A);
+  static const _secondLabelColor = Color(0xFFB71C1C);
+  static const _equationColor = Color(0xFF0A2463);
+
+  final _dots = <_SubtractionDotComponent>[];
 
   bool _disposed = false;
-  int? _activeTick;
-  int _rangeStart = 0;
-  int _rangeEnd = 1;
-  double _lineStartX = 0;
-  double _lineY = 0;
-  double _stepWidth = 0;
+  bool _isAnimating = false;
+  bool _areCountsInEquation = false;
+  bool _areRemovalDotsHighlighted = false;
+  bool _areRemovalDotsRemoved = false;
+  bool _isResultColored = false;
+  bool _isMinusVisible = false;
+  bool _isEqualsVisible = false;
+  bool _isResultVisible = false;
 
-  SubtractionVisualizer({required super.context});
+  late final int _minuend;
+  late final int _rawSubtrahend;
+  late final int _subtrahend;
+
+  _RoundedGridComponent? _grid;
+  late final TextComponent _firstCountLabel;
+  late final TextComponent _secondCountLabel;
+  late final TextComponent _minusLabel;
+  late final TextComponent _equalsLabel;
+  late final TextComponent _resultLabel;
+  late _SceneLayout _layout;
+
+  SubtractionVisualizer({required super.context}) {
+    _minuend = _normalizedOperand(0);
+    _rawSubtrahend = _normalizedOperand(1);
+    _subtrahend = math.min(_minuend, _rawSubtrahend);
+  }
 
   @override
   Color backgroundColor() => mathHelpVisualizerBackgroundColor;
 
-  int get _startValue => _operandValue(0, fallback: 0).round();
+  int get _difference => _minuend - _subtrahend;
 
-  int get _hopCount {
-    final hops = _operandValue(1, fallback: 0).round();
-    return hops < 0 ? 0 : hops;
+  List<_SubtractionDotComponent> get _removalDots {
+    if (_subtrahend == 0 || _dots.isEmpty) {
+      return const <_SubtractionDotComponent>[];
+    }
+    return _dots.sublist(_difference);
+  }
+
+  List<_SubtractionDotComponent> get _remainingDots {
+    if (_difference <= 0) {
+      return const <_SubtractionDotComponent>[];
+    }
+    return _dots.sublist(0, _difference);
   }
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    _configureRange();
+    _layout = _createLayout();
     _buildScene();
     unawaited(_runLoop());
+  }
+
+  @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    if (!isLoaded || _isAnimating) {
+      return;
+    }
+    _applyLayoutPreservingState();
   }
 
   @override
@@ -65,146 +109,225 @@ class SubtractionVisualizer extends MathVisualizer {
   Future<void> _runLoop() async {
     while (!_disposed) {
       await _playOnce();
-      if (_disposed) return;
+      if (_disposed) {
+        return;
+      }
       await Future<void>.delayed(_loopPause);
     }
   }
 
   Future<void> _playOnce() async {
     _resetScene();
-    final hops = _hopCount;
+    _isAnimating = true;
 
-    for (var step = 1; step <= hops; step++) {
-      final landingValue = _startValue - step;
-      await _moveMarkerTo(landingValue);
-      if (_disposed) return;
-      _highlightTick(landingValue);
+    try {
+      await _showCountLabel(_firstCountLabel);
+      if (_disposed) {
+        return;
+      }
+      await Future<void>.delayed(_phasePause);
+      if (_disposed) {
+        return;
+      }
+
+      if (_subtrahend > 0) {
+        await Future.wait(<Future<void>>[
+          _highlightRemovalDots(),
+          _showCountLabel(_secondCountLabel),
+          _showMinusLabel(),
+        ]);
+        if (_disposed) {
+          return;
+        }
+        await Future<void>.delayed(_phasePause);
+        if (_disposed) {
+          return;
+        }
+        await _removeRemovalDots();
+        if (_disposed) {
+          return;
+        }
+      } else {
+        await Future.wait(<Future<void>>[
+          _showCountLabel(_secondCountLabel),
+          _showMinusLabel(),
+        ]);
+        if (_disposed) {
+          return;
+        }
+      }
+
+      await Future.wait(<Future<void>>[
+        _morphRemainingDotsToResultColor(),
+        _showResultLabel(),
+      ]);
+      if (_disposed) {
+        return;
+      }
+      await _slideCountsIntoEquation();
+      if (_disposed) {
+        return;
+      }
+      await _showEqualsLabel();
+      if (_disposed) {
+        return;
+      }
+    } finally {
+      _isAnimating = false;
     }
-
-    _showAnswer();
-  }
-
-  Future<void> _moveMarkerTo(int value) {
-    final completer = Completer<void>();
-    _marker.add(
-      MoveEffect.to(
-        Vector2(_xForValue(value), _lineY),
-        EffectController(duration: 1.8, curve: Curves.easeInOutCubic),
-        onComplete: completer.complete,
-      ),
-    );
-    return completer.future;
   }
 
   void _buildScene() {
-    final width = size.x > 0 ? size.x : _fallbackWidth;
-    final height = size.y > 0 ? size.y : _fallbackHeight;
-
-    _lineStartX = _linePadding;
-    final lineEndX = width - _linePadding;
-    final lineWidth = math.max(120.0, lineEndX - _lineStartX);
-    _lineY = height * 0.56;
-    final tickCount = _rangeEnd - _rangeStart + 1;
-    _stepWidth = tickCount <= 1 ? lineWidth : lineWidth / (tickCount - 1);
-
-    _numberLine = RectangleComponent(
-      position: Vector2(_lineStartX, _lineY - _lineThickness / 2),
-      size: Vector2(lineWidth, _lineThickness),
-      paint: Paint()..color = _lineColor,
+    _grid = _RoundedGridComponent(
+      rows: _layout.rows,
+      columns: _layout.columns,
+      position: _layout.gridOrigin,
+      size: _layout.gridSize,
     );
-    add(_numberLine);
+    add(_grid!);
 
-    final labelRenderer = mathHelpTextPaint(
-      color: const Color(0xFF13315C),
-      fontSize: 28,
-      fontWeight: FontWeight.w700,
-    );
-
-    for (var value = _rangeStart; value <= _rangeEnd; value++) {
-      final x = _xForValue(value);
-      final tick = RectangleComponent(
-        position: Vector2(x - _tickWidth / 2, _lineY - _tickHeight / 2),
-        size: Vector2(_tickWidth, _tickHeight),
-        paint: Paint()..color = _baseTickColor,
+    for (var index = 0; index < _minuend; index++) {
+      final dot = _SubtractionDotComponent(
+        center: _layout.targetPositions[index],
+        color: _baseDotColor,
+        radius: _layout.dotRadius,
       );
-      _ticks[value] = tick;
-      add(tick);
-
-      add(
-        TextComponent(
-          text: '$value',
-          anchor: Anchor.topCenter,
-          position: Vector2(x, _lineY + 24),
-          textRenderer: labelRenderer,
-        ),
-      );
+      add(dot);
+      _dots.add(dot);
     }
 
-    _marker = PolygonComponent(
-      _arrowVertices(),
+    _firstCountLabel = TextComponent(
+      text: '$_minuend',
       anchor: Anchor.center,
-      position: Vector2(_xForValue(_startValue), _lineY),
-      paint: Paint()..color = _markerColor,
-    );
-    add(_marker);
-
-    _answerLabel = TextComponent(
-      text: _answerText(),
-      anchor: Anchor.center,
-      position: Vector2(width / 2, _lineY - 72),
+      position: _layout.firstCountPosition,
       scale: Vector2.zero(),
       textRenderer: mathHelpTextPaint(
-        color: const Color(0xFF9D174D),
-        fontSize: 34,
+        color: _firstLabelColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
       ),
     );
-    add(_answerLabel);
-  }
+    add(_firstCountLabel);
 
-  List<Vector2> _arrowVertices() {
-    return [
-      Vector2(-20, 0),
-      Vector2(-4, -14),
-      Vector2(-4, -7),
-      Vector2(18, -7),
-      Vector2(18, 7),
-      Vector2(-4, 7),
-      Vector2(-4, 14),
-    ];
+    _secondCountLabel = TextComponent(
+      text: '$_subtrahend',
+      anchor: Anchor.center,
+      position: _layout.secondCountPosition,
+      scale: Vector2.zero(),
+      textRenderer: mathHelpTextPaint(
+        color: _secondLabelColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    add(_secondCountLabel);
+
+    _minusLabel = TextComponent(
+      text: '-',
+      anchor: Anchor.center,
+      position: _layout.minusPosition,
+      scale: Vector2.zero(),
+      textRenderer: mathHelpTextPaint(
+        color: _equationColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    add(_minusLabel);
+
+    _equalsLabel = TextComponent(
+      text: '=',
+      anchor: Anchor.center,
+      position: _layout.equalsPosition,
+      scale: Vector2.zero(),
+      textRenderer: mathHelpTextPaint(
+        color: _equationColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    add(_equalsLabel);
+
+    _resultLabel = TextComponent(
+      text: '$_difference',
+      anchor: Anchor.center,
+      position: _layout.resultPosition,
+      scale: Vector2.zero(),
+      textRenderer: mathHelpTextPaint(
+        color: _equationColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    add(_resultLabel);
+
+    _resetScene();
   }
 
   void _resetScene() {
-    _removeEffects(_marker);
-    _removeEffects(_answerLabel);
-    _answerLabel.scale = Vector2.zero();
-    _answerLabel.text = _answerText();
-    _marker.position = Vector2(_xForValue(_startValue), _lineY);
-    _activeTick = null;
-
-    for (final tick in _ticks.values) {
-      tick.paint.color = _baseTickColor;
+    for (var index = 0; index < _dots.length; index++) {
+      final dot = _dots[index];
+      dot.clearEffects();
+      dot
+        ..radius = _layout.dotRadius
+        ..position = _layout.targetPositions[index]
+        ..scale = Vector2.all(1)
+        ..opacity = 1
+        ..paint.color = _baseDotColor;
     }
-  }
 
-  void _showAnswer() {
-    _removeEffects(_answerLabel);
-    _answerLabel.scale = Vector2.zero();
-    _answerLabel.add(
-      ScaleEffect.to(
-        Vector2.all(1),
-        EffectController(duration: 0.45, curve: Curves.easeOutBack),
-      ),
-    );
-  }
+    _removeEffects(_firstCountLabel);
+    _firstCountLabel
+      ..text = '$_minuend'
+      ..textRenderer = mathHelpTextPaint(
+        color: _firstLabelColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      )
+      ..position = _layout.firstCountPosition
+      ..scale = Vector2.zero();
 
-  void _highlightTick(int value) {
-    if (_activeTick != null) {
-      _ticks[_activeTick!]?.paint.color = _baseTickColor;
-    }
-    final tick = _ticks[value];
-    if (tick == null) return;
-    tick.paint.color = _activeTickColor;
-    _activeTick = value;
+    _removeEffects(_secondCountLabel);
+    _secondCountLabel
+      ..text = '$_subtrahend'
+      ..textRenderer = mathHelpTextPaint(
+        color: _secondLabelColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      )
+      ..position = _layout.secondCountPosition
+      ..scale = Vector2.zero();
+
+    _removeEffects(_minusLabel);
+    _minusLabel
+      ..text = '-'
+      ..position = _layout.minusPosition
+      ..scale = Vector2.zero();
+
+    _removeEffects(_equalsLabel);
+    _equalsLabel
+      ..text = '='
+      ..position = _layout.equalsPosition
+      ..scale = Vector2.zero();
+
+    _removeEffects(_resultLabel);
+    _resultLabel
+      ..text = '$_difference'
+      ..textRenderer = mathHelpTextPaint(
+        color: _equationColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      )
+      ..position = _layout.resultPosition
+      ..scale = Vector2.zero();
+
+    _areCountsInEquation = false;
+    _areRemovalDotsHighlighted = false;
+    _areRemovalDotsRemoved = false;
+    _isResultColored = false;
+    _isMinusVisible = false;
+    _isEqualsVisible = false;
+    _isResultVisible = false;
   }
 
   void _removeEffects(PositionComponent component) {
@@ -214,31 +337,652 @@ class SubtractionVisualizer extends MathVisualizer {
     }
   }
 
-  void _configureRange() {
-    final start = _startValue;
-    final end = _startValue - _hopCount;
-    final answer = context.correctAnswer.round();
-    final minValue = math.min(start, math.min(end, answer));
-    final maxValue = math.max(start, math.max(end, answer));
-    _rangeStart = minValue - 1;
-    _rangeEnd = maxValue + 1;
-    if (_rangeEnd <= _rangeStart) {
-      _rangeEnd = _rangeStart + 1;
+  void _applyLayoutPreservingState() {
+    _layout = _createLayout();
+    _grid
+      ?..position = _layout.gridOrigin
+      ..size = _layout.gridSize
+      ..setDimensions(rows: _layout.rows, columns: _layout.columns);
+
+    for (var index = 0; index < _dots.length; index++) {
+      final dot = _dots[index];
+      final isRemovalDot = index >= _difference;
+      var color = _baseDotColor;
+      if (_isResultColored && !isRemovalDot) {
+        color = _remainingDotColor;
+      }
+      if (_areRemovalDotsHighlighted &&
+          isRemovalDot &&
+          !_areRemovalDotsRemoved) {
+        color = _removalDotColor;
+      }
+      final isHidden = _areRemovalDotsRemoved && isRemovalDot;
+      dot
+        ..radius = _layout.dotRadius
+        ..position = _layout.targetPositions[index]
+        ..scale = Vector2.all(isHidden ? _removedDotScale : 1)
+        ..opacity = isHidden ? 0 : 1
+        ..paint.color = color;
+    }
+
+    _firstCountLabel
+      ..position = _areCountsInEquation
+          ? _layout.firstEquationNumberPosition
+          : _layout.firstCountPosition
+      ..scale = _areCountsInEquation ? Vector2.all(1) : Vector2.zero()
+      ..textRenderer = mathHelpTextPaint(
+        color: _areCountsInEquation ? _remainingDotColor : _firstLabelColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      );
+
+    _secondCountLabel
+      ..position = _areCountsInEquation
+          ? _layout.secondEquationNumberPosition
+          : _layout.secondCountPosition
+      ..scale = _areCountsInEquation ? Vector2.all(1) : Vector2.zero()
+      ..textRenderer = mathHelpTextPaint(
+        color: _areCountsInEquation ? _remainingDotColor : _secondLabelColor,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      );
+
+    _minusLabel
+      ..position = _layout.minusPosition
+      ..scale = _isMinusVisible ? Vector2.all(1) : Vector2.zero();
+    _equalsLabel
+      ..position = _layout.equalsPosition
+      ..scale = _isEqualsVisible ? Vector2.all(1) : Vector2.zero();
+    _resultLabel
+      ..position = _layout.resultPosition
+      ..scale = _isResultVisible ? Vector2.all(1) : Vector2.zero()
+      ..textRenderer = mathHelpTextPaint(
+        color: _isResultVisible ? _remainingDotColor : _equationColor,
+        fontSize: 34,
+        fontWeight: FontWeight.w700,
+      );
+  }
+
+  _SceneLayout _createLayout() {
+    final width = size.x > 0 ? size.x : _fallbackWidth;
+    final height = size.y > 0 ? size.y : _fallbackHeight;
+    final horizontalPadding = math.max(12.0, width * 0.06);
+    final bottomPadding = math.max(10.0, height * 0.06);
+    final equationY = math.max(30.0, height * 0.14);
+
+    final gridTop = height * 0.34;
+    final gridBottom = height - bottomPadding;
+
+    final gridRect = Rect.fromLTWH(
+      horizontalPadding,
+      gridTop,
+      math.max(80.0, width - (horizontalPadding * 2)),
+      math.max(72.0, gridBottom - gridTop),
+    );
+
+    final targetSpec = _bestGrid(
+      count: math.max(1, _minuend),
+      width: gridRect.width,
+      height: gridRect.height,
+    );
+    final targetPositions = _gridPositions(
+      rect: gridRect,
+      columns: targetSpec.columns,
+      count: _minuend,
+    );
+
+    final radiusBase = math.min(targetSpec.cellWidth, targetSpec.cellHeight);
+    final radius = math.max(_minDotRadius, radiusBase * _dotRadiusFactor);
+
+    final countLabelY = gridRect.top - math.max(16.0, radius * 3.0);
+    final rawFirstCountPosition = Vector2(
+      gridRect.left + (gridRect.width * 0.3),
+      countLabelY,
+    );
+    final rawSecondCountPosition = Vector2(
+      gridRect.left + (gridRect.width * 0.7),
+      countLabelY,
+    );
+    final separatedCounts = _separateCountPositions(
+      first: rawFirstCountPosition,
+      second: rawSecondCountPosition,
+      minGap: radius * _countLabelMinGapMultiplier,
+      minX: gridRect.left + radius,
+      maxX: gridRect.right - radius,
+    );
+
+    final equationCenterX = width / 2;
+    final equationStep = math.max(26.0, math.min(46.0, width * 0.09));
+    final firstEquationNumberPosition = Vector2(
+      equationCenterX - (equationStep * 2.0),
+      equationY,
+    );
+    final minusPosition = Vector2(equationCenterX - equationStep, equationY);
+    final secondEquationNumberPosition = Vector2(equationCenterX, equationY);
+    final equalsPosition = Vector2(equationCenterX + equationStep, equationY);
+    final resultPosition = Vector2(
+      equationCenterX + (equationStep * 2.2),
+      equationY,
+    );
+
+    return _SceneLayout(
+      rows: targetSpec.rows,
+      columns: targetSpec.columns,
+      gridOrigin: Vector2(gridRect.left, gridRect.top),
+      gridSize: Vector2(gridRect.width, gridRect.height),
+      targetPositions: targetPositions,
+      dotRadius: radius,
+      firstCountPosition: separatedCounts.$1,
+      secondCountPosition: separatedCounts.$2,
+      firstEquationNumberPosition: firstEquationNumberPosition,
+      secondEquationNumberPosition: secondEquationNumberPosition,
+      minusPosition: minusPosition,
+      equalsPosition: equalsPosition,
+      resultPosition: resultPosition,
+    );
+  }
+
+  (Vector2, Vector2) _separateCountPositions({
+    required Vector2 first,
+    required Vector2 second,
+    required double minGap,
+    required double minX,
+    required double maxX,
+  }) {
+    if ((second - first).length >= minGap) {
+      return (first, second);
+    }
+
+    var firstX = first.x;
+    var secondX = second.x;
+    final centerX = (firstX + secondX) / 2;
+    firstX = centerX - (minGap / 2);
+    secondX = centerX + (minGap / 2);
+
+    if (firstX < minX) {
+      final shift = minX - firstX;
+      firstX += shift;
+      secondX += shift;
+    }
+    if (secondX > maxX) {
+      final shift = secondX - maxX;
+      firstX -= shift;
+      secondX -= shift;
+    }
+
+    firstX = firstX.clamp(minX, maxX).toDouble();
+    secondX = secondX.clamp(minX, maxX).toDouble();
+
+    if ((secondX - firstX).abs() < minGap) {
+      firstX = minX;
+      secondX = maxX;
+    }
+
+    final labelY = math.min(first.y, second.y);
+    return (Vector2(firstX, labelY), Vector2(secondX, labelY));
+  }
+
+  _GridSpec _bestGrid({
+    required int count,
+    required double width,
+    required double height,
+  }) {
+    if (count <= 1) {
+      return _GridSpec(
+        rows: 1,
+        columns: 1,
+        cellWidth: width,
+        cellHeight: height,
+      );
+    }
+
+    var best = _GridSpec(
+      rows: count,
+      columns: 1,
+      cellWidth: width,
+      cellHeight: height / count,
+    );
+    var bestScore = double.infinity;
+
+    for (var columns = 1; columns <= count; columns++) {
+      final rows = (count / columns).ceil();
+      final cellWidth = width / columns;
+      final cellHeight = height / rows;
+      final unusedSlots = (rows * columns) - count;
+      final aspectPenalty = (cellWidth / math.max(1, cellHeight) - 1).abs();
+      final score = aspectPenalty + (unusedSlots * 0.016);
+      if (score < bestScore) {
+        bestScore = score;
+        best = _GridSpec(
+          rows: rows,
+          columns: columns,
+          cellWidth: cellWidth,
+          cellHeight: cellHeight,
+        );
+      }
+    }
+
+    return best;
+  }
+
+  List<Vector2> _gridPositions({
+    required Rect rect,
+    required int columns,
+    required int count,
+  }) {
+    if (count == 0) {
+      return const <Vector2>[];
+    }
+    final rows = (count / columns).ceil();
+    final cellWidth = rect.width / columns;
+    final cellHeight = rect.height / rows;
+
+    return List<Vector2>.generate(count, (index) {
+      final row = index ~/ columns;
+      final column = index % columns;
+      return Vector2(
+        rect.left + (column * cellWidth) + (cellWidth * 0.5),
+        rect.top + (row * cellHeight) + (cellHeight * 0.5),
+      );
+    });
+  }
+
+  int _normalizedOperand(int index) {
+    if (index >= context.operands.length) {
+      return 0;
+    }
+    final rounded = context.operands[index].round();
+    if (rounded < 0) {
+      return 0;
+    }
+    if (rounded > _maxOperand) {
+      return _maxOperand;
+    }
+    return rounded;
+  }
+
+  Future<void> _showCountLabel(TextComponent label) {
+    _removeEffects(label);
+    label.scale = Vector2.zero();
+    final completer = Completer<void>();
+    label.add(
+      SequenceEffect(<Effect>[
+        ScaleEffect.to(
+          Vector2.all(1),
+          EffectController(duration: 0.51, curve: Curves.easeOutBack),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.1),
+          EffectController(
+            duration: 0.21,
+            curve: Curves.easeInOut,
+            alternate: true,
+            repeatCount: 1,
+          ),
+        ),
+      ], onComplete: completer.complete),
+    );
+    return completer.future;
+  }
+
+  Future<void> _highlightRemovalDots() async {
+    final removalDots = _removalDots;
+    if (removalDots.isEmpty) {
+      return;
+    }
+
+    _areRemovalDotsHighlighted = true;
+    for (final dot in removalDots) {
+      dot.paint.color = _removalDotColor;
+    }
+
+    final highlightFutures = <Future<void>>[];
+    for (var index = 0; index < removalDots.length; index++) {
+      highlightFutures.add(
+        removalDots[index].pulse(
+          duration: _highlightPulseDurationSeconds,
+          delay: index * _highlightStaggerDelaySeconds,
+        ),
+      );
+    }
+    await Future.wait(highlightFutures);
+  }
+
+  Future<void> _removeRemovalDots() async {
+    final removalDots = _removalDots;
+    if (removalDots.isEmpty) {
+      return;
+    }
+
+    _areRemovalDotsRemoved = true;
+    final removeFutures = <Future<void>>[];
+    for (var index = 0; index < removalDots.length; index++) {
+      removeFutures.add(
+        removalDots[index].removeWithFade(
+          duration: _removeDurationSeconds,
+          targetScale: _removedDotScale,
+          delay: index * _removeStaggerDelaySeconds,
+        ),
+      );
+    }
+    await Future.wait(removeFutures);
+  }
+
+  Future<void> _morphRemainingDotsToResultColor() async {
+    final remainingDots = _remainingDots;
+    if (remainingDots.isEmpty) {
+      _isResultColored = true;
+      return;
+    }
+
+    final fromColors = remainingDots.map((dot) => dot.paint.color).toList();
+    const stepCount = 16;
+    final stepMilliseconds = (_colorMorphDuration.inMilliseconds / stepCount)
+        .round();
+    final stepDuration = Duration(milliseconds: math.max(1, stepMilliseconds));
+
+    for (var step = 1; step <= stepCount; step++) {
+      if (_disposed) {
+        return;
+      }
+      final progress = Curves.easeInOutCubic.transform(step / stepCount);
+      for (var index = 0; index < remainingDots.length; index++) {
+        remainingDots[index].paint.color =
+            Color.lerp(fromColors[index], _remainingDotColor, progress) ??
+            _remainingDotColor;
+      }
+      await Future<void>.delayed(stepDuration);
+    }
+    _isResultColored = true;
+  }
+
+  Future<void> _slideCountsIntoEquation() async {
+    _removeEffects(_firstCountLabel);
+    _removeEffects(_secondCountLabel);
+    _firstCountLabel.scale = Vector2.all(1);
+    _secondCountLabel.scale = Vector2.all(1);
+
+    final slideFutures = <Future<void>>[
+      _moveLabelTo(
+        _firstCountLabel,
+        _layout.firstEquationNumberPosition,
+        delay: 0,
+      ),
+      _moveLabelTo(
+        _secondCountLabel,
+        _layout.secondEquationNumberPosition,
+        delay: _countSlideStaggerSeconds,
+      ),
+    ];
+
+    await Future.wait(slideFutures);
+    _firstCountLabel.textRenderer = mathHelpTextPaint(
+      color: _remainingDotColor,
+      fontSize: 32,
+      fontWeight: FontWeight.w700,
+    );
+    _secondCountLabel.textRenderer = mathHelpTextPaint(
+      color: _remainingDotColor,
+      fontSize: 32,
+      fontWeight: FontWeight.w700,
+    );
+    _areCountsInEquation = true;
+  }
+
+  Future<void> _moveLabelTo(
+    TextComponent label,
+    Vector2 targetPosition, {
+    required double delay,
+  }) {
+    final completer = Completer<void>();
+    label.add(
+      MoveEffect.to(
+        targetPosition,
+        EffectController(
+          duration: _countSlideDurationSeconds,
+          startDelay: delay,
+          curve: Curves.easeInOutCubic,
+        ),
+        onComplete: completer.complete,
+      ),
+    );
+    return completer.future;
+  }
+
+  Future<void> _showMinusLabel() async {
+    if (_isMinusVisible) {
+      return;
+    }
+    _isMinusVisible = true;
+    await _showEquationSymbol(_minusLabel);
+  }
+
+  Future<void> _showEqualsLabel() async {
+    if (_isEqualsVisible) {
+      return;
+    }
+    _isEqualsVisible = true;
+    await _showEquationSymbol(_equalsLabel);
+  }
+
+  Future<void> _showResultLabel() async {
+    if (_isResultVisible) {
+      return;
+    }
+    _isResultVisible = true;
+    _removeEffects(_resultLabel);
+    _resultLabel.scale = Vector2.zero();
+    _resultLabel.text = '$_difference';
+    _resultLabel.textRenderer = mathHelpTextPaint(
+      color: _remainingDotColor,
+      fontSize: 34,
+      fontWeight: FontWeight.w700,
+    );
+
+    final completer = Completer<void>();
+    _resultLabel.add(
+      SequenceEffect(<Effect>[
+        ScaleEffect.to(
+          Vector2.all(1),
+          EffectController(duration: 0.51, curve: Curves.easeOutBack),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1.14),
+          EffectController(
+            duration: 0.27,
+            curve: Curves.easeInOut,
+            alternate: true,
+            repeatCount: 2,
+          ),
+        ),
+      ], onComplete: completer.complete),
+    );
+    await completer.future;
+  }
+
+  Future<void> _showEquationSymbol(TextComponent label) {
+    _removeEffects(label);
+    label.scale = Vector2.zero();
+    final completer = Completer<void>();
+    label.add(
+      ScaleEffect.to(
+        Vector2.all(1),
+        EffectController(duration: 0.36, curve: Curves.easeOutBack),
+        onComplete: completer.complete,
+      ),
+    );
+    return completer.future;
+  }
+}
+
+class _RoundedGridComponent extends RectangleComponent {
+  _RoundedGridComponent({
+    required int rows,
+    required int columns,
+    required super.position,
+    required super.size,
+  }) : _rows = rows,
+       _columns = columns;
+
+  int _rows;
+  int _columns;
+
+  final Paint _fillPaint = Paint()..color = const Color(0xFFF8FBFF);
+  final Paint _framePaint = Paint()
+    ..color = const Color(0xFFBBD0F6)
+    ..strokeWidth = 2
+    ..style = PaintingStyle.stroke;
+  final Paint _linePaint = Paint()
+    ..color = const Color(0xFFD6E2F7)
+    ..strokeWidth = 1.2
+    ..style = PaintingStyle.stroke;
+
+  void setDimensions({required int rows, required int columns}) {
+    _rows = rows;
+    _columns = columns;
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final rect = Rect.fromLTWH(0, 0, size.x, size.y);
+    const cornerRadius = Radius.circular(18);
+    final roundedRect = RRect.fromRectAndRadius(rect, cornerRadius);
+
+    canvas.drawRRect(roundedRect, _fillPaint);
+    canvas.drawRRect(roundedRect, _framePaint);
+
+    if (_rows <= 0 || _columns <= 0) {
+      return;
+    }
+
+    final cellWidth = rect.width / _columns;
+    final cellHeight = rect.height / _rows;
+
+    for (var column = 1; column < _columns; column++) {
+      final x = cellWidth * column;
+      canvas.drawLine(Offset(x, 0), Offset(x, rect.height), _linePaint);
+    }
+
+    for (var row = 1; row < _rows; row++) {
+      final y = cellHeight * row;
+      canvas.drawLine(Offset(0, y), Offset(rect.width, y), _linePaint);
+    }
+  }
+}
+
+class _SubtractionDotComponent extends CircleComponent {
+  _SubtractionDotComponent({
+    required Vector2 center,
+    required Color color,
+    required double radius,
+  }) : super(
+         radius: radius,
+         anchor: Anchor.center,
+         position: center,
+         paint: Paint()..color = color,
+       );
+
+  void clearEffects() {
+    final effects = children.whereType<Effect>().toList();
+    for (final effect in effects) {
+      effect.removeFromParent();
     }
   }
 
-  double _xForValue(int value) {
-    return _lineStartX + (value - _rangeStart) * _stepWidth;
+  Future<void> pulse({required double duration, double delay = 0}) {
+    final completer = Completer<void>();
+    add(
+      SequenceEffect(<Effect>[
+        ScaleEffect.to(
+          Vector2.all(1.18),
+          EffectController(
+            duration: duration * 0.5,
+            startDelay: delay,
+            curve: Curves.easeOutBack,
+          ),
+        ),
+        ScaleEffect.to(
+          Vector2.all(1),
+          EffectController(duration: duration * 0.5, curve: Curves.easeInOut),
+        ),
+      ], onComplete: completer.complete),
+    );
+    return completer.future;
   }
 
-  num _operandValue(int index, {required num fallback}) {
-    if (index >= context.operands.length) return fallback;
-    return context.operands[index];
+  Future<void> removeWithFade({
+    required double duration,
+    required double targetScale,
+    double delay = 0,
+  }) {
+    final completer = Completer<void>();
+    add(
+      OpacityEffect.to(
+        0,
+        EffectController(
+          duration: duration,
+          startDelay: delay,
+          curve: Curves.easeInCubic,
+        ),
+      ),
+    );
+    add(
+      ScaleEffect.to(
+        Vector2.all(targetScale),
+        EffectController(
+          duration: duration,
+          startDelay: delay,
+          curve: Curves.easeInBack,
+        ),
+        onComplete: completer.complete,
+      ),
+    );
+    return completer.future;
   }
+}
 
-  String _answerText() {
-    final first = _operandValue(0, fallback: 0);
-    final second = _operandValue(1, fallback: 0);
-    return '$first - $second = ${context.correctAnswer}';
-  }
+class _GridSpec {
+  const _GridSpec({
+    required this.rows,
+    required this.columns,
+    required this.cellWidth,
+    required this.cellHeight,
+  });
+
+  final int rows;
+  final int columns;
+  final double cellWidth;
+  final double cellHeight;
+}
+
+class _SceneLayout {
+  const _SceneLayout({
+    required this.rows,
+    required this.columns,
+    required this.gridOrigin,
+    required this.gridSize,
+    required this.targetPositions,
+    required this.dotRadius,
+    required this.firstCountPosition,
+    required this.secondCountPosition,
+    required this.firstEquationNumberPosition,
+    required this.secondEquationNumberPosition,
+    required this.minusPosition,
+    required this.equalsPosition,
+    required this.resultPosition,
+  });
+
+  final int rows;
+  final int columns;
+  final Vector2 gridOrigin;
+  final Vector2 gridSize;
+  final List<Vector2> targetPositions;
+  final double dotRadius;
+  final Vector2 firstCountPosition;
+  final Vector2 secondCountPosition;
+  final Vector2 firstEquationNumberPosition;
+  final Vector2 secondEquationNumberPosition;
+  final Vector2 minusPosition;
+  final Vector2 equalsPosition;
+  final Vector2 resultPosition;
 }

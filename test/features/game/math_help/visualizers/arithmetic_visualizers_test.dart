@@ -60,7 +60,7 @@ void main() {
     );
   });
 
-  test('SubtractionVisualizer builds number-line components', () async {
+  test('SubtractionVisualizer builds subtraction dot-grid scene', () async {
     final visualizer = await _loadVisualizer(
       SubtractionVisualizer(
         context: MathHelpContext(
@@ -73,15 +73,56 @@ void main() {
     );
     addTearDown(visualizer.onRemove);
 
-    expect(
-      visualizer.children.whereType<RectangleComponent>().length,
-      greaterThan(2),
+    expect(visualizer.children.whereType<CircleComponent>().length, 9);
+    expect(visualizer.children.whereType<RectangleComponent>(), isNotEmpty);
+    final texts = visualizer.children.whereType<TextComponent>().toList();
+    expect(texts.any((component) => component.text == '-'), isTrue);
+    expect(texts.any((component) => component.text == '='), isTrue);
+  });
+
+  test('SubtractionVisualizer clamps and caps operands', () async {
+    final visualizer = await _loadVisualizer(
+      SubtractionVisualizer(
+        context: MathHelpContext(
+          topicFamily: MathTopicFamily.arithmetic,
+          operation: 'subtraction',
+          operands: const [25, -2],
+          correctAnswer: 100,
+        ),
+      ),
     );
-    expect(visualizer.children.whereType<PolygonComponent>(), isNotEmpty);
-    expect(
-      visualizer.children.whereType<TextComponent>().length,
-      greaterThan(1),
+    addTearDown(visualizer.onRemove);
+
+    expect(visualizer.children.whereType<CircleComponent>().length, 20);
+    final texts = visualizer.children.whereType<TextComponent>().toList();
+    expect(texts.any((component) => component.text == '20'), isTrue);
+    expect(texts.any((component) => component.text == '0'), isTrue);
+  });
+
+  test('SubtractionVisualizer keeps minuend and subtrahend apart', () async {
+    final visualizer = await _loadVisualizer(
+      SubtractionVisualizer(
+        context: MathHelpContext(
+          topicFamily: MathTopicFamily.arithmetic,
+          operation: 'subtraction',
+          operands: const [8, 8],
+          correctAnswer: 0,
+        ),
+      ),
     );
+    addTearDown(visualizer.onRemove);
+
+    final operandLabels = visualizer.children
+        .whereType<TextComponent>()
+        .where((component) => component.text == '8')
+        .toList();
+
+    expect(operandLabels.length, 2);
+    final firstPosition = operandLabels[0].position;
+    final secondPosition = operandLabels[1].position;
+    expect((secondPosition - firstPosition).length, greaterThan(20));
+    expect((firstPosition.y - secondPosition.y).abs(), lessThan(0.01));
+    expect(firstPosition.x, lessThan(secondPosition.x));
   });
 
   test('MultiplicationVisualizer creates rows x columns dots', () async {

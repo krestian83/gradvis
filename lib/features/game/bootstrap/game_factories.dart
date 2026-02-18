@@ -4,6 +4,7 @@ import '../games/reading/trinn1/alphabet_sound_quiz/presentation/alphabet_sound_
 import '../games/math/trinn1/math_helper_demo/presentation/math_helper_demo_game.dart';
 import '../games/math/trinn1/math_helper_showcase/presentation/math_helper_showcase_game.dart';
 import '../games/math/trinn1/addition_quiz/presentation/addition_quiz_game.dart';
+import '../games/math/trinn1/subtraction_quiz/presentation/subtraction_quiz_game.dart';
 // [MINIGAME_IMPORTS_END]
 
 // [MINIGAME_FACTORY_KEYS_START]
@@ -11,6 +12,7 @@ const alphabetSoundQuizFactoryKey = 'alphabet_sound_quiz';
 const mathHelperDemoFactoryKey = 'math_helper_demo';
 const mathHelperShowcaseFactoryKey = 'math_helper_showcase';
 const additionQuizFactoryKey = 'addition_quiz';
+const subtractionQuizFactoryKey = 'subtraction_quiz';
 // [MINIGAME_FACTORY_KEYS_END]
 
 final Map<String, GameFactory> builtInGameFactories = {
@@ -23,6 +25,8 @@ final Map<String, GameFactory> builtInGameFactories = {
       MathHelperShowcaseGame(onComplete: onComplete),
   additionQuizFactoryKey: ({required onComplete}) =>
       AdditionQuizGame(onComplete: onComplete),
+  subtractionQuizFactoryKey: ({required onComplete}) =>
+      SubtractionQuizGame(onComplete: onComplete),
   // [MINIGAME_FACTORIES_END]
 };
 
