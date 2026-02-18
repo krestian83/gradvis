@@ -99,31 +99,57 @@ void main() {
     expect(texts.any((component) => component.text == '0'), isTrue);
   });
 
-  test('SubtractionVisualizer keeps minuend and subtrahend apart', () async {
-    final visualizer = await _loadVisualizer(
-      SubtractionVisualizer(
-        context: MathHelpContext(
-          topicFamily: MathTopicFamily.arithmetic,
-          operation: 'subtraction',
-          operands: const [8, 8],
-          correctAnswer: 0,
+  test(
+    'SubtractionVisualizer keeps operands and symbols in equation row',
+    () async {
+      final visualizer = await _loadVisualizer(
+        SubtractionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'subtraction',
+            operands: const [8, 8],
+            correctAnswer: 0,
+          ),
         ),
-      ),
-    );
-    addTearDown(visualizer.onRemove);
+      );
+      addTearDown(visualizer.onRemove);
 
-    final operandLabels = visualizer.children
-        .whereType<TextComponent>()
-        .where((component) => component.text == '8')
-        .toList();
+      final operandLabels = visualizer.children
+          .whereType<TextComponent>()
+          .where((component) => component.text == '8')
+          .toList();
 
-    expect(operandLabels.length, 2);
-    final firstPosition = operandLabels[0].position;
-    final secondPosition = operandLabels[1].position;
-    expect((secondPosition - firstPosition).length, greaterThan(20));
-    expect((firstPosition.y - secondPosition.y).abs(), lessThan(0.01));
-    expect(firstPosition.x, lessThan(secondPosition.x));
-  });
+      expect(operandLabels.length, 2);
+      final sortedOperands = operandLabels.toList()
+        ..sort((left, right) => left.position.x.compareTo(right.position.x));
+      final minuendLabel = sortedOperands.first;
+      final subtrahendLabel = sortedOperands.last;
+      final minusLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == '-');
+      final equalsLabel = visualizer.children
+          .whereType<TextComponent>()
+          .firstWhere((component) => component.text == '=');
+
+      expect(
+        (subtrahendLabel.position - minuendLabel.position).length,
+        greaterThan(20),
+      );
+      expect(
+        (minuendLabel.position.y - minusLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        (subtrahendLabel.position.y - minusLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(
+        (equalsLabel.position.y - minusLabel.position.y).abs(),
+        lessThan(0.01),
+      );
+      expect(minuendLabel.position.x, lessThan(subtrahendLabel.position.x));
+    },
+  );
 
   test('MultiplicationVisualizer creates rows x columns dots', () async {
     final visualizer = await _loadVisualizer(

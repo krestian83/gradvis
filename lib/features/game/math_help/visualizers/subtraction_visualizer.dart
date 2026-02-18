@@ -16,8 +16,6 @@ class SubtractionVisualizer extends MathVisualizer {
   static const _dotRadiusFactor = 0.22;
   static const _minDotRadius = 3.6;
   static const _removedDotScale = 0.5;
-  static const _countSlideDurationSeconds = 0.84;
-  static const _countSlideStaggerSeconds = 0.18;
   static const _highlightPulseDurationSeconds = 0.54;
   static const _highlightStaggerDelaySeconds = 0.08;
   static const _removeDurationSeconds = 0.66;
@@ -25,7 +23,6 @@ class SubtractionVisualizer extends MathVisualizer {
   static const _colorMorphDuration = Duration(milliseconds: 850);
   static const _phasePause = Duration(milliseconds: 1050);
   static const _loopPause = Duration(seconds: 3);
-  static const _countLabelMinGapMultiplier = 4.8;
 
   static const _baseDotColor = Color(0xFF1B6DE2);
   static const _removalDotColor = Color(0xFFE53935);
@@ -122,11 +119,12 @@ class SubtractionVisualizer extends MathVisualizer {
 
     try {
       await _showCountLabel(_firstCountLabel);
-      if (_disposed) {
+      if (!await _pauseForNextStep()) {
         return;
       }
-      await Future<void>.delayed(_phasePause);
-      if (_disposed) {
+
+      await _showMinusLabel();
+      if (!await _pauseForNextStep()) {
         return;
       }
 
@@ -134,47 +132,44 @@ class SubtractionVisualizer extends MathVisualizer {
         await Future.wait(<Future<void>>[
           _highlightRemovalDots(),
           _showCountLabel(_secondCountLabel),
-          _showMinusLabel(),
         ]);
-        if (_disposed) {
-          return;
-        }
-        await Future<void>.delayed(_phasePause);
-        if (_disposed) {
+        if (!await _pauseForNextStep()) {
           return;
         }
         await _removeRemovalDots();
-        if (_disposed) {
+        if (!await _pauseForNextStep()) {
           return;
         }
       } else {
-        await Future.wait(<Future<void>>[
-          _showCountLabel(_secondCountLabel),
-          _showMinusLabel(),
-        ]);
-        if (_disposed) {
+        await _showCountLabel(_secondCountLabel);
+        if (!await _pauseForNextStep()) {
           return;
         }
       }
 
-      await Future.wait(<Future<void>>[
-        _morphRemainingDotsToResultColor(),
-        _showResultLabel(),
-      ]);
-      if (_disposed) {
-        return;
-      }
-      await _slideCountsIntoEquation();
-      if (_disposed) {
-        return;
-      }
       await _showEqualsLabel();
+      if (!await _pauseForNextStep()) {
+        return;
+      }
+
+      await Future.wait(<Future<void>>[
+        _showResultLabel(),
+        _morphRemainingDotsToResultColor(),
+      ]);
       if (_disposed) {
         return;
       }
     } finally {
       _isAnimating = false;
     }
+  }
+
+  Future<bool> _pauseForNextStep() async {
+    if (_disposed) {
+      return false;
+    }
+    await Future<void>.delayed(_phasePause);
+    return !_disposed;
   }
 
   void _buildScene() {
@@ -371,7 +366,7 @@ class SubtractionVisualizer extends MathVisualizer {
           : _layout.firstCountPosition
       ..scale = _areCountsInEquation ? Vector2.all(1) : Vector2.zero()
       ..textRenderer = mathHelpTextPaint(
-        color: _areCountsInEquation ? _remainingDotColor : _firstLabelColor,
+        color: _firstLabelColor,
         fontSize: 32,
         fontWeight: FontWeight.w700,
       );
@@ -382,7 +377,7 @@ class SubtractionVisualizer extends MathVisualizer {
           : _layout.secondCountPosition
       ..scale = _areCountsInEquation ? Vector2.all(1) : Vector2.zero()
       ..textRenderer = mathHelpTextPaint(
-        color: _areCountsInEquation ? _remainingDotColor : _secondLabelColor,
+        color: _secondLabelColor,
         fontSize: 32,
         fontWeight: FontWeight.w700,
       );
@@ -434,23 +429,6 @@ class SubtractionVisualizer extends MathVisualizer {
     final radiusBase = math.min(targetSpec.cellWidth, targetSpec.cellHeight);
     final radius = math.max(_minDotRadius, radiusBase * _dotRadiusFactor);
 
-    final countLabelY = gridRect.top - math.max(16.0, radius * 3.0);
-    final rawFirstCountPosition = Vector2(
-      gridRect.left + (gridRect.width * 0.3),
-      countLabelY,
-    );
-    final rawSecondCountPosition = Vector2(
-      gridRect.left + (gridRect.width * 0.7),
-      countLabelY,
-    );
-    final separatedCounts = _separateCountPositions(
-      first: rawFirstCountPosition,
-      second: rawSecondCountPosition,
-      minGap: radius * _countLabelMinGapMultiplier,
-      minX: gridRect.left + radius,
-      maxX: gridRect.right - radius,
-    );
-
     final equationCenterX = width / 2;
     final equationStep = math.max(26.0, math.min(46.0, width * 0.09));
     final firstEquationNumberPosition = Vector2(
@@ -472,54 +450,14 @@ class SubtractionVisualizer extends MathVisualizer {
       gridSize: Vector2(gridRect.width, gridRect.height),
       targetPositions: targetPositions,
       dotRadius: radius,
-      firstCountPosition: separatedCounts.$1,
-      secondCountPosition: separatedCounts.$2,
+      firstCountPosition: firstEquationNumberPosition,
+      secondCountPosition: secondEquationNumberPosition,
       firstEquationNumberPosition: firstEquationNumberPosition,
       secondEquationNumberPosition: secondEquationNumberPosition,
       minusPosition: minusPosition,
       equalsPosition: equalsPosition,
       resultPosition: resultPosition,
     );
-  }
-
-  (Vector2, Vector2) _separateCountPositions({
-    required Vector2 first,
-    required Vector2 second,
-    required double minGap,
-    required double minX,
-    required double maxX,
-  }) {
-    if ((second - first).length >= minGap) {
-      return (first, second);
-    }
-
-    var firstX = first.x;
-    var secondX = second.x;
-    final centerX = (firstX + secondX) / 2;
-    firstX = centerX - (minGap / 2);
-    secondX = centerX + (minGap / 2);
-
-    if (firstX < minX) {
-      final shift = minX - firstX;
-      firstX += shift;
-      secondX += shift;
-    }
-    if (secondX > maxX) {
-      final shift = secondX - maxX;
-      firstX -= shift;
-      secondX -= shift;
-    }
-
-    firstX = firstX.clamp(minX, maxX).toDouble();
-    secondX = secondX.clamp(minX, maxX).toDouble();
-
-    if ((secondX - firstX).abs() < minGap) {
-      firstX = minX;
-      secondX = maxX;
-    }
-
-    final labelY = math.min(first.y, second.y);
-    return (Vector2(firstX, labelY), Vector2(secondX, labelY));
   }
 
   _GridSpec _bestGrid({
@@ -672,6 +610,7 @@ class SubtractionVisualizer extends MathVisualizer {
     final remainingDots = _remainingDots;
     if (remainingDots.isEmpty) {
       _isResultColored = true;
+      _areCountsInEquation = true;
       return;
     }
 
@@ -694,59 +633,7 @@ class SubtractionVisualizer extends MathVisualizer {
       await Future<void>.delayed(stepDuration);
     }
     _isResultColored = true;
-  }
-
-  Future<void> _slideCountsIntoEquation() async {
-    _removeEffects(_firstCountLabel);
-    _removeEffects(_secondCountLabel);
-    _firstCountLabel.scale = Vector2.all(1);
-    _secondCountLabel.scale = Vector2.all(1);
-
-    final slideFutures = <Future<void>>[
-      _moveLabelTo(
-        _firstCountLabel,
-        _layout.firstEquationNumberPosition,
-        delay: 0,
-      ),
-      _moveLabelTo(
-        _secondCountLabel,
-        _layout.secondEquationNumberPosition,
-        delay: _countSlideStaggerSeconds,
-      ),
-    ];
-
-    await Future.wait(slideFutures);
-    _firstCountLabel.textRenderer = mathHelpTextPaint(
-      color: _remainingDotColor,
-      fontSize: 32,
-      fontWeight: FontWeight.w700,
-    );
-    _secondCountLabel.textRenderer = mathHelpTextPaint(
-      color: _remainingDotColor,
-      fontSize: 32,
-      fontWeight: FontWeight.w700,
-    );
     _areCountsInEquation = true;
-  }
-
-  Future<void> _moveLabelTo(
-    TextComponent label,
-    Vector2 targetPosition, {
-    required double delay,
-  }) {
-    final completer = Completer<void>();
-    label.add(
-      MoveEffect.to(
-        targetPosition,
-        EffectController(
-          duration: _countSlideDurationSeconds,
-          startDelay: delay,
-          curve: Curves.easeInOutCubic,
-        ),
-        onComplete: completer.complete,
-      ),
-    );
-    return completer.future;
   }
 
   Future<void> _showMinusLabel() async {
