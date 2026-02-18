@@ -135,22 +135,49 @@ void main() {
     expect(texts.any((component) => component.text == '='), isTrue);
   });
 
-  test('SubtractionVisualizer clamps and caps operands', () async {
+  test(
+    'SubtractionVisualizer switches to base-10 blocks for larger operands',
+    () async {
+      final visualizer = await _loadVisualizer(
+        SubtractionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'subtraction',
+            operands: const [14, 6],
+            correctAnswer: 8,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      expect(visualizer.children.whereType<CircleComponent>(), isEmpty);
+      expect(
+        visualizer.children.whereType<RectangleComponent>().length,
+        greaterThan(1),
+      );
+    },
+  );
+
+  test('SubtractionVisualizer clamps operands for base-10 mode', () async {
     final visualizer = await _loadVisualizer(
       SubtractionVisualizer(
         context: MathHelpContext(
           topicFamily: MathTopicFamily.arithmetic,
           operation: 'subtraction',
-          operands: const [25, -2],
+          operands: const [700, -2],
           correctAnswer: 100,
         ),
       ),
     );
     addTearDown(visualizer.onRemove);
 
-    expect(visualizer.children.whereType<CircleComponent>().length, 20);
+    expect(visualizer.children.whereType<CircleComponent>(), isEmpty);
+    expect(
+      visualizer.children.whereType<RectangleComponent>().length,
+      greaterThan(1),
+    );
     final texts = visualizer.children.whereType<TextComponent>().toList();
-    expect(texts.any((component) => component.text == '20'), isTrue);
+    expect(texts.any((component) => component.text == '500'), isTrue);
     expect(texts.any((component) => component.text == '0'), isTrue);
   });
 
