@@ -23,13 +23,23 @@ class SubtractionVisualizer extends MathVisualizer {
   static const _highlightStaggerDelaySeconds = 0.64;
   static const _removeDurationSeconds = 0.66;
   static const _removeStaggerDelaySeconds = 0.09;
+  static const _baseTenGroupScale = 1.24;
+  static const _baseTenGroupScaleDurationSeconds = 0.32;
+  static const _baseTenGroupGrowPause = Duration(seconds: 1);
+  static const _baseTenGroupSlideDurationSeconds = 0.72;
+  static const _baseTenSlidePadding = 120.0;
+  static const _baseTenGroupPause = Duration(seconds: 2);
+  static const _beforeResultColorPause = Duration(seconds: 1);
   static const _phasePause = Duration(milliseconds: 1050);
   static const _loopPause = Duration(seconds: 3);
   static const _slowdownFactor = 1.3;
   static const _answerSlideDurationSeconds = 0.68;
+  static const _answerPrePulseScale = 1.75;
+  static const _answerPrePulseDurationSeconds = 0.42;
   static const _answerPulseDurationSeconds = 4.0;
   static const _answerPulseScale = 1.15;
   static const _answerPulseCycles = 6;
+  static const _baseTenDotFillFactor = 0.9;
 
   static const _baseDotColor = Color(0xFF1B6DE2);
   static const _removalDotColor = Color(0xFFE53935);
@@ -231,6 +241,9 @@ class SubtractionVisualizer extends MathVisualizer {
           return;
         }
         await _removeRemovalTokens();
+        if (!await _pauseBeforeResultColor()) {
+          return;
+        }
       } else {
         await _showCountLabel(_secondCountLabel);
       }
@@ -249,6 +262,14 @@ class SubtractionVisualizer extends MathVisualizer {
       return false;
     }
     await Future<void>.delayed(_scaledDuration(_phasePause));
+    return !_disposed;
+  }
+
+  Future<bool> _pauseBeforeResultColor() async {
+    if (_disposed) {
+      return false;
+    }
+    await Future<void>.delayed(_beforeResultColorPause);
     return !_disposed;
   }
 
@@ -349,11 +370,10 @@ class SubtractionVisualizer extends MathVisualizer {
 
     return _SubtractionToken(
       kind: tokenLayout.kind,
-      component: _SubtractionBaseTenBlockComponent(
+      component: _SubtractionBaseTenDotComponent(
         center: tokenLayout.center,
-        size: tokenLayout.blockSize.clone(),
+        radius: tokenLayout.dotRadius,
         color: _baseDotColor,
-        cornerRadius: tokenLayout.cornerRadius,
         kind: tokenLayout.kind,
         value: tokenLayout.blockValue,
       ),
@@ -611,27 +631,83 @@ class SubtractionVisualizer extends MathVisualizer {
       usableRect.width,
       math.max(16.0, usableRect.bottom - (tensRect.bottom + sectionGap)),
     );
+    final radii = _resolveBaseTenDotRadii(
+      hundredsRect: hundredsRect,
+      tensRect: tensRect,
+      onesRect: onesRect,
+    );
 
     final tokenLayouts = <_TokenLayout>[
-      ..._hundredsLayouts(rect: hundredsRect, count: _displayHundreds),
-      ..._tensLayouts(rect: tensRect, count: _displayTens),
-      ..._onesLayouts(rect: onesRect, count: _displayOnes),
+      ..._hundredsLayouts(
+        rect: hundredsRect,
+        count: _displayHundreds,
+        radius: radii.hundreds,
+      ),
+      ..._tensLayouts(rect: tensRect, count: _displayTens, radius: radii.tens),
+      ..._onesLayouts(rect: onesRect, count: _displayOnes, radius: radii.ones),
     ];
 
-    final columns = 10;
-    const rows = 6;
-    final gridSpec = _GridSpec(
-      rows: rows,
-      columns: columns,
-      cellWidth: rect.width / columns,
-      cellHeight: rect.height / rows,
+    final gridSpec = _bestGrid(
+      count: math.max(1, tokenLayouts.length),
+      width: rect.width,
+      height: rect.height,
     );
     return (gridSpec, tokenLayouts);
+  }
+
+  ({double hundreds, double tens, double ones}) _resolveBaseTenDotRadii({
+    required Rect hundredsRect,
+    required Rect tensRect,
+    required Rect onesRect,
+  }) {
+    final onesCellMin = _sectionCellMin(
+      rect: onesRect,
+      count: _displayOnes,
+      maxColumns: 10,
+    );
+    final tensCellMin = _sectionCellMin(
+      rect: tensRect,
+      count: _displayTens,
+      maxColumns: 5,
+    );
+    final hundredsCellMin = _sectionCellMin(
+      rect: hundredsRect,
+      count: _displayHundreds,
+      maxColumns: 3,
+    );
+
+    final oneRadiusCandidates = <double>[
+      if (onesCellMin.isFinite) onesCellMin * _baseTenDotFillFactor * 0.5,
+      if (tensCellMin.isFinite) tensCellMin * _baseTenDotFillFactor * 0.25,
+      if (hundredsCellMin.isFinite)
+        hundredsCellMin * _baseTenDotFillFactor * 0.125,
+    ];
+
+    final onesRadius = oneRadiusCandidates.isEmpty
+        ? 4.0
+        : oneRadiusCandidates.reduce(math.min);
+    return (hundreds: onesRadius * 4, tens: onesRadius * 2, ones: onesRadius);
+  }
+
+  double _sectionCellMin({
+    required Rect rect,
+    required int count,
+    required int maxColumns,
+  }) {
+    if (count <= 0) {
+      return double.infinity;
+    }
+    final columns = math.max(1, math.min(maxColumns, count));
+    final rows = (count / columns).ceil();
+    final cellWidth = rect.width / columns;
+    final cellHeight = rect.height / rows;
+    return math.min(cellWidth, cellHeight);
   }
 
   List<_TokenLayout> _hundredsLayouts({
     required Rect rect,
     required int count,
+    required double radius,
   }) {
     if (count <= 0) {
       return const <_TokenLayout>[];
@@ -641,8 +717,6 @@ class SubtractionVisualizer extends MathVisualizer {
     final rows = (count / columns).ceil();
     final cellWidth = rect.width / columns;
     final cellHeight = rect.height / rows;
-    final side = math.max(12.0, math.min(cellWidth, cellHeight) * 0.72);
-    final cornerRadius = math.min(8.0, side * 0.16);
 
     return List<_TokenLayout>.generate(count, (index) {
       final row = index ~/ columns;
@@ -654,14 +728,17 @@ class SubtractionVisualizer extends MathVisualizer {
       return _TokenLayout(
         kind: _TokenKind.hundreds,
         center: center,
-        blockSize: Vector2.all(side),
-        cornerRadius: cornerRadius,
+        dotRadius: radius,
         blockValue: 100,
       );
     });
   }
 
-  List<_TokenLayout> _tensLayouts({required Rect rect, required int count}) {
+  List<_TokenLayout> _tensLayouts({
+    required Rect rect,
+    required int count,
+    required double radius,
+  }) {
     if (count <= 0) {
       return const <_TokenLayout>[];
     }
@@ -670,12 +747,6 @@ class SubtractionVisualizer extends MathVisualizer {
     final rows = (count / columns).ceil();
     final cellWidth = rect.width / columns;
     final cellHeight = rect.height / rows;
-    final rodWidth = math.max(22.0, cellWidth * 0.8);
-    final rodHeight = math.max(
-      10.0,
-      math.min(cellHeight * 0.58, rodWidth * 0.34),
-    );
-    final cornerRadius = math.min(8.0, rodHeight * 0.42);
 
     return List<_TokenLayout>.generate(count, (index) {
       final row = index ~/ columns;
@@ -687,14 +758,17 @@ class SubtractionVisualizer extends MathVisualizer {
       return _TokenLayout(
         kind: _TokenKind.tens,
         center: center,
-        blockSize: Vector2(rodWidth, rodHeight),
-        cornerRadius: cornerRadius,
+        dotRadius: radius,
         blockValue: 10,
       );
     });
   }
 
-  List<_TokenLayout> _onesLayouts({required Rect rect, required int count}) {
+  List<_TokenLayout> _onesLayouts({
+    required Rect rect,
+    required int count,
+    required double radius,
+  }) {
     if (count <= 0) {
       return const <_TokenLayout>[];
     }
@@ -703,8 +777,6 @@ class SubtractionVisualizer extends MathVisualizer {
     final rows = (count / columns).ceil();
     final cellWidth = rect.width / columns;
     final cellHeight = rect.height / rows;
-    final side = math.max(8.0, math.min(cellWidth, cellHeight) * 0.62);
-    final cornerRadius = math.min(6.0, side * 0.24);
 
     return List<_TokenLayout>.generate(count, (index) {
       final row = index ~/ columns;
@@ -716,8 +788,7 @@ class SubtractionVisualizer extends MathVisualizer {
       return _TokenLayout(
         kind: _TokenKind.ones,
         center: center,
-        blockSize: Vector2.all(side),
-        cornerRadius: cornerRadius,
+        dotRadius: radius,
         blockValue: 1,
       );
     });
@@ -878,6 +949,17 @@ class SubtractionVisualizer extends MathVisualizer {
     }
 
     _areRemovalTokensRemoved = true;
+    if (_usesBaseTenBlocks) {
+      await _removeBaseTenTokensByGroup(removalTokens);
+      return;
+    }
+
+    await _removeTokensSequentially(removalTokens);
+  }
+
+  Future<void> _removeTokensSequentially(
+    List<_SubtractionToken> removalTokens,
+  ) async {
     var runningFirstOperand = _minuend;
     var runningSecondOperand = _subtrahend;
     final removeStagger = Duration(
@@ -900,15 +982,103 @@ class SubtractionVisualizer extends MathVisualizer {
       runningSecondOperand = math.max(0, runningSecondOperand - token.value);
       _firstCountLabel.text = '$runningFirstOperand';
       _secondCountLabel.text = '$runningSecondOperand';
-      if (runningSecondOperand == 0 && _isSecondOperandVisible) {
-        _isSecondOperandVisible = false;
-        _removeEffects(_secondCountLabel);
-        _secondCountLabel.scale = Vector2.zero();
-      }
+      _hideSecondOperandLabelWhenDone(runningSecondOperand);
       if (index < removalTokens.length - 1) {
         await Future<void>.delayed(removeStagger);
       }
     }
+  }
+
+  Future<void> _removeBaseTenTokensByGroup(
+    List<_SubtractionToken> removalTokens,
+  ) async {
+    final groups = _orderedBaseTenRemovalGroups(removalTokens);
+    if (groups.isEmpty) {
+      return;
+    }
+
+    final width = size.x > 0 ? size.x : _fallbackWidth;
+    final slideDelta = Vector2(width + _baseTenSlidePadding, 0);
+    var runningFirstOperand = _minuend;
+    var runningSecondOperand = _subtrahend;
+
+    for (var index = 0; index < groups.length; index++) {
+      if (_disposed) {
+        return;
+      }
+
+      final group = groups[index];
+      for (final token in group) {
+        token.hideValueLabel();
+      }
+
+      await Future.wait(
+        group.map(
+          (token) => token.scaleTo(
+            duration: _scaledSeconds(_baseTenGroupScaleDurationSeconds),
+            targetScale: _baseTenGroupScale,
+          ),
+        ),
+      );
+      if (_disposed) {
+        return;
+      }
+
+      await Future<void>.delayed(_baseTenGroupGrowPause);
+      if (_disposed) {
+        return;
+      }
+
+      await Future.wait(
+        group.map(
+          (token) => token.slideBy(
+            duration: _scaledSeconds(_baseTenGroupSlideDurationSeconds),
+            delta: slideDelta,
+          ),
+        ),
+      );
+
+      final groupTotal = group.fold<int>(0, (sum, token) {
+        return sum + token.value;
+      });
+      runningFirstOperand = math.max(0, runningFirstOperand - groupTotal);
+      runningSecondOperand = math.max(0, runningSecondOperand - groupTotal);
+      _firstCountLabel.text = '$runningFirstOperand';
+      _secondCountLabel.text = '$runningSecondOperand';
+      _hideSecondOperandLabelWhenDone(runningSecondOperand);
+
+      if (index < groups.length - 1) {
+        await Future<void>.delayed(_baseTenGroupPause);
+      }
+    }
+  }
+
+  List<List<_SubtractionToken>> _orderedBaseTenRemovalGroups(
+    List<_SubtractionToken> removalTokens,
+  ) {
+    const kindOrder = <_TokenKind>[
+      _TokenKind.ones,
+      _TokenKind.tens,
+      _TokenKind.hundreds,
+    ];
+
+    return kindOrder
+        .map((kind) {
+          return removalTokens
+              .where((token) => token.kind == kind)
+              .toList(growable: false);
+        })
+        .where((group) => group.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  void _hideSecondOperandLabelWhenDone(int runningSecondOperand) {
+    if (runningSecondOperand != 0 || !_isSecondOperandVisible) {
+      return;
+    }
+    _isSecondOperandVisible = false;
+    _removeEffects(_secondCountLabel);
+    _secondCountLabel.scale = Vector2.zero();
   }
 
   Future<void> _completeSubtractionToAnswerState() async {
@@ -958,24 +1128,56 @@ class SubtractionVisualizer extends MathVisualizer {
       return;
     }
 
-    final pulseHalfCycleSeconds =
-        _answerPulseDurationSeconds / (_answerPulseCycles * 2);
-    final pulseCompleter = Completer<void>();
-    _firstCountLabel.add(
+    await _scaleLabelTo(
+      label: _firstCountLabel,
+      targetScale: _answerPrePulseScale,
+      duration: _scaledSeconds(_answerPrePulseDurationSeconds),
+      curve: Curves.easeOutBack,
+    );
+    if (_disposed) {
+      return;
+    }
+
+    final pulseHalfCycleSeconds = _scaledSeconds(
+      _answerPulseDurationSeconds / (_answerPulseCycles * 2),
+    );
+    final pulseTargetScale = _answerPrePulseScale * _answerPulseScale;
+    for (var cycle = 0; cycle < _answerPulseCycles; cycle++) {
+      await _scaleLabelTo(
+        label: _firstCountLabel,
+        targetScale: pulseTargetScale,
+        duration: pulseHalfCycleSeconds,
+      );
+      if (_disposed) {
+        return;
+      }
+      await _scaleLabelTo(
+        label: _firstCountLabel,
+        targetScale: _answerPrePulseScale,
+        duration: pulseHalfCycleSeconds,
+      );
+      if (_disposed) {
+        return;
+      }
+    }
+    _firstCountLabel.scale = Vector2.all(1);
+  }
+
+  Future<void> _scaleLabelTo({
+    required TextComponent label,
+    required double targetScale,
+    required double duration,
+    Curve curve = Curves.easeInOut,
+  }) {
+    final completer = Completer<void>();
+    label.add(
       ScaleEffect.to(
-        Vector2.all(_answerPulseScale),
-        EffectController(
-          duration: pulseHalfCycleSeconds,
-          reverseDuration: pulseHalfCycleSeconds,
-          curve: Curves.easeInOut,
-          alternate: true,
-          repeatCount: _answerPulseCycles,
-        ),
-        onComplete: pulseCompleter.complete,
+        Vector2.all(targetScale),
+        EffectController(duration: duration, curve: curve),
+        onComplete: completer.complete,
       ),
     );
-    await pulseCompleter.future;
-    _firstCountLabel.scale = Vector2.all(1);
+    return completer.future;
   }
 
   Future<void> _showMinusLabel() async {
@@ -1084,7 +1286,7 @@ class _SubtractionToken {
   Paint get _paint {
     return switch (component) {
       _SubtractionDotComponent dot => dot.paint,
-      _SubtractionBaseTenBlockComponent block => block.paint,
+      _SubtractionBaseTenDotComponent dot => dot.paint,
       _ => throw StateError(
         'Unsupported subtraction token type: ${component.runtimeType}',
       ),
@@ -1095,8 +1297,8 @@ class _SubtractionToken {
     switch (component) {
       case final _SubtractionDotComponent dot:
         dot.opacity = value;
-      case final _SubtractionBaseTenBlockComponent block:
-        block.opacity = value;
+      case final _SubtractionBaseTenDotComponent dot:
+        dot.opacity = value;
       default:
         throw StateError(
           'Unsupported subtraction token type: ${component.runtimeType}',
@@ -1106,8 +1308,8 @@ class _SubtractionToken {
 
   void hideValueLabel() {
     switch (component) {
-      case final _SubtractionBaseTenBlockComponent block:
-        block.hideValueLabel();
+      case final _SubtractionBaseTenDotComponent dot:
+        dot.hideValueLabel();
       case final _SubtractionDotComponent _:
       default:
         return;
@@ -1116,8 +1318,8 @@ class _SubtractionToken {
 
   void showValueLabel() {
     switch (component) {
-      case final _SubtractionBaseTenBlockComponent block:
-        block.showValueLabel();
+      case final _SubtractionBaseTenDotComponent dot:
+        dot.showValueLabel();
       case final _SubtractionDotComponent _:
       default:
         return;
@@ -1128,8 +1330,8 @@ class _SubtractionToken {
     switch (component) {
       case final _SubtractionDotComponent dot:
         dot.applyLayout(layout);
-      case final _SubtractionBaseTenBlockComponent block:
-        block.applyLayout(layout);
+      case final _SubtractionBaseTenDotComponent dot:
+        dot.applyLayout(layout);
       default:
         throw StateError(
           'Unsupported subtraction token type: ${component.runtimeType}',
@@ -1161,6 +1363,46 @@ class _SubtractionToken {
           EffectController(duration: duration * 0.5, curve: Curves.easeInOut),
         ),
       ], onComplete: completer.complete),
+    );
+    return completer.future;
+  }
+
+  Future<void> scaleTo({
+    required double duration,
+    required double targetScale,
+    double delay = 0,
+  }) {
+    final completer = Completer<void>();
+    component.add(
+      ScaleEffect.to(
+        Vector2.all(targetScale),
+        EffectController(
+          duration: duration,
+          startDelay: delay,
+          curve: Curves.easeOutBack,
+        ),
+        onComplete: completer.complete,
+      ),
+    );
+    return completer.future;
+  }
+
+  Future<void> slideBy({
+    required double duration,
+    required Vector2 delta,
+    double delay = 0,
+  }) {
+    final completer = Completer<void>();
+    component.add(
+      MoveEffect.by(
+        delta,
+        EffectController(
+          duration: duration,
+          startDelay: delay,
+          curve: Curves.easeInOutCubic,
+        ),
+        onComplete: completer.complete,
+      ),
     );
     return completer.future;
   }
@@ -1214,27 +1456,25 @@ class _SubtractionDotComponent extends CircleComponent {
   }
 }
 
-class _SubtractionBaseTenBlockComponent extends RectangleComponent {
-  _SubtractionBaseTenBlockComponent({
+class _SubtractionBaseTenDotComponent extends CircleComponent {
+  _SubtractionBaseTenDotComponent({
     required Vector2 center,
-    required Vector2 size,
+    required double radius,
     required Color color,
-    required double cornerRadius,
     required _TokenKind kind,
     required int value,
   }) : _kind = kind,
        _value = value,
-       _cornerRadius = cornerRadius,
        super(
+         radius: radius,
          anchor: Anchor.center,
          position: center,
-         size: size,
          paint: Paint()..color = color,
        ) {
     _valueLabel = TextComponent(
       text: '$_value',
       anchor: Anchor.center,
-      position: size / 2,
+      position: _labelPosition,
       textRenderer: _valueTextPaint(fontSize: _labelFontSize),
     );
     add(_valueLabel);
@@ -1244,19 +1484,20 @@ class _SubtractionBaseTenBlockComponent extends RectangleComponent {
 
   _TokenKind _kind;
   int _value;
-  double _cornerRadius;
   bool _isValueLabelVisible = true;
   late final TextComponent _valueLabel;
 
+  Vector2 get _labelPosition => Vector2.all(radius);
+
   double get _labelFontSize {
-    final shortSide = math.min(size.x, size.y);
+    final diameter = radius * 2;
     final scale = switch (_kind) {
-      _TokenKind.ones => 0.68,
-      _TokenKind.tens => 0.78,
+      _TokenKind.ones => 0.7,
+      _TokenKind.tens => 0.56,
       _TokenKind.hundreds => 0.42,
       _TokenKind.dot => 0.68,
     };
-    return math.max(6.5, math.min(15.0, shortSide * scale));
+    return math.max(6.5, math.min(15.0, diameter * scale));
   }
 
   TextPaint _valueTextPaint({required double fontSize}) {
@@ -1271,7 +1512,7 @@ class _SubtractionBaseTenBlockComponent extends RectangleComponent {
   void _syncValueLabel() {
     _valueLabel
       ..text = _isValueLabelVisible ? '$_value' : ''
-      ..position = size / 2
+      ..position = _labelPosition
       ..textRenderer = _valueTextPaint(fontSize: _labelFontSize);
   }
 
@@ -1287,65 +1528,10 @@ class _SubtractionBaseTenBlockComponent extends RectangleComponent {
 
   void applyLayout(_TokenLayout layout) {
     position = layout.center;
-    size = layout.blockSize;
-    _cornerRadius = layout.cornerRadius;
+    radius = layout.dotRadius;
     _kind = layout.kind;
     _value = layout.blockValue;
     _syncValueLabel();
-  }
-
-  @override
-  void render(Canvas canvas) {
-    super.render(canvas);
-
-    final rect = Rect.fromLTWH(0, 0, size.x, size.y);
-    final roundedRect = RRect.fromRectAndRadius(
-      rect,
-      Radius.circular(_cornerRadius),
-    );
-
-    final borderColor =
-        Color.lerp(paint.color, Colors.black, 0.24) ?? paint.color;
-    final colorAlpha = (paint.color.a * 255).round().clamp(0, 255);
-    final borderPaint = Paint()
-      ..color = borderColor.withAlpha(colorAlpha)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    canvas.drawRRect(roundedRect, borderPaint);
-
-    if (size.x <= 0 || size.y <= 0) {
-      return;
-    }
-
-    final separatorAlpha = (colorAlpha * 0.4).round().clamp(0, 255);
-    final separatorPaint = Paint()
-      ..color = borderColor.withAlpha(separatorAlpha)
-      ..strokeWidth = 0.8;
-    switch (_kind) {
-      case _TokenKind.tens:
-        final step = size.x / 10;
-        final bottom = math.max(2.0, size.y - 2);
-        for (var index = 1; index < 10; index++) {
-          final x = step * index;
-          canvas.drawLine(Offset(x, 2), Offset(x, bottom), separatorPaint);
-        }
-        break;
-      case _TokenKind.hundreds:
-        final widthStep = size.x / 10;
-        final heightStep = size.y / 10;
-        final bottom = math.max(2.0, size.y - 2);
-        final right = math.max(2.0, size.x - 2);
-        for (var index = 1; index < 10; index++) {
-          final x = widthStep * index;
-          final y = heightStep * index;
-          canvas.drawLine(Offset(x, 2), Offset(x, bottom), separatorPaint);
-          canvas.drawLine(Offset(2, y), Offset(right, y), separatorPaint);
-        }
-        break;
-      case _TokenKind.ones:
-      case _TokenKind.dot:
-        break;
-    }
   }
 }
 
@@ -1368,16 +1554,12 @@ class _TokenLayout {
     required this.kind,
     required this.center,
     this.dotRadius = 0,
-    Vector2? blockSize,
-    this.cornerRadius = 0,
     this.blockValue = 0,
-  }) : blockSize = blockSize ?? Vector2.zero();
+  });
 
   final _TokenKind kind;
   final Vector2 center;
   final double dotRadius;
-  final Vector2 blockSize;
-  final double cornerRadius;
   final int blockValue;
 }
 

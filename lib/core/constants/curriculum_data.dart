@@ -63,9 +63,9 @@ const Map<Subject, Map<int, List<LevelNode>>> curriculumData = {
       LevelNode(icon: '🧩', label: 'Problem'),
     ],
     4: [
-      LevelNode(icon: '✖️', label: 'Tabellrush'),
-      LevelNode(icon: '🔢', label: 'Plussbro'),
-      LevelNode(icon: '🔸', label: 'Minusjakt'),
+      LevelNode(icon: '✖️', label: '×6–10'),
+      LevelNode(icon: '🔢', label: 'Store tall'),
+      LevelNode(icon: '🔸', label: 'Desimal'),
       LevelNode(icon: '📐', label: 'Areal'),
       LevelNode(icon: '📊', label: 'Statistikk'),
     ],

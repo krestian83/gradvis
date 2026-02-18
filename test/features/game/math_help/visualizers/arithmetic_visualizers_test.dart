@@ -145,7 +145,7 @@ void main() {
   });
 
   test(
-    'SubtractionVisualizer switches to base-10 blocks for larger operands',
+    'SubtractionVisualizer switches to base-10 dots for larger operands',
     () async {
       final visualizer = await _loadVisualizer(
         SubtractionVisualizer(
@@ -159,16 +159,15 @@ void main() {
       );
       addTearDown(visualizer.onRemove);
 
-      expect(visualizer.children.whereType<CircleComponent>(), isEmpty);
       expect(
-        visualizer.children.whereType<RectangleComponent>().length,
+        visualizer.children.whereType<CircleComponent>().length,
         greaterThan(1),
       );
     },
   );
 
   test(
-    'SubtractionVisualizer uses 100, 10 and 1 block labels in base-10 mode',
+    'SubtractionVisualizer uses 100, 10 and 1 labels in base-10 mode',
     () async {
       final visualizer = await _loadVisualizer(
         SubtractionVisualizer(
@@ -182,15 +181,42 @@ void main() {
       );
       addTearDown(visualizer.onRemove);
 
-      expect(visualizer.children.whereType<CircleComponent>(), isEmpty);
       expect(
-        visualizer.children.whereType<RectangleComponent>().length,
+        visualizer.children.whereType<CircleComponent>().length,
         greaterThan(1),
       );
       final texts = _textDescendants(visualizer).toList();
       expect(texts.any((component) => component.text == '100'), isTrue);
       expect(texts.any((component) => component.text == '10'), isTrue);
       expect(texts.any((component) => component.text == '1'), isTrue);
+    },
+  );
+
+  test(
+    'SubtractionVisualizer sizes base-10 dots with exact 2x steps',
+    () async {
+      final visualizer = await _loadVisualizer(
+        SubtractionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'subtraction',
+            operands: const [111, 0],
+            correctAnswer: 111,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      final radii =
+          visualizer.children
+              .whereType<CircleComponent>()
+              .map((dot) => dot.radius)
+              .toList()
+            ..sort((left, right) => right.compareTo(left));
+
+      expect(radii.length, 3);
+      expect(radii[0], closeTo(radii[1] * 2, 0.0001));
+      expect(radii[1], closeTo(radii[2] * 2, 0.0001));
     },
   );
 
@@ -207,11 +233,7 @@ void main() {
     );
     addTearDown(visualizer.onRemove);
 
-    expect(visualizer.children.whereType<CircleComponent>(), isEmpty);
-    expect(
-      visualizer.children.whereType<RectangleComponent>().length,
-      greaterThan(1),
-    );
+    expect(visualizer.children.whereType<CircleComponent>(), isNotEmpty);
     final texts = visualizer.children.whereType<TextComponent>().toList();
     expect(texts.any((component) => component.text == '500'), isTrue);
     expect(texts.any((component) => component.text == '0'), isTrue);

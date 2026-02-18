@@ -50,10 +50,9 @@ class MathHelpButton extends StatelessWidget {
       return;
     }
 
-    await showModalBottomSheet<void>(
+    await showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: true,
       builder: (_) =>
           MathHelpOverlay(helpContext: helpContext, visualizer: visualizer),
     );
