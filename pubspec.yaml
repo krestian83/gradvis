@@ -26,7 +26,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/audio/music/theme.mp3
+    - assets/audio/music/
     - assets/audio/letters/
     - assets/audio/sfx/
   fonts:
