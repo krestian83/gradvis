@@ -19,40 +19,32 @@ class MathDashEngine {
     return questions;
   }
 
-  /// Two-digit + two-digit with carrying, sum <= 199.
+  /// Two-digit + single-digit, sum ≤ 99.
   MathDashQuestion _createAddition() {
-    while (true) {
-      final left = _random.nextInt(69) + 28;
-      final right = _random.nextInt(73) + 17;
-      final sum = left + right;
-      final needsCarry = (left % 10) + (right % 10) >= 10;
-      if (!needsCarry || sum > 199) continue;
-      return MathDashQuestion(
-        left: left,
-        right: right,
-        operator: '+',
-        answer: sum,
-        options: _buildAdditiveOptions(sum),
-      );
-    }
+    final left = _random.nextInt(60) + 12;
+    final right = _random.nextInt(8) + 2;
+    final sum = left + right;
+    return MathDashQuestion(
+      left: left,
+      right: right,
+      operator: '+',
+      answer: sum,
+      options: _buildAdditiveOptions(sum),
+    );
   }
 
-  /// Three-digit - two-digit with borrowing, result > 25.
+  /// Two-digit − single-digit, result > 10.
   MathDashQuestion _createSubtraction() {
-    while (true) {
-      final minuend = _random.nextInt(301) + 120;
-      final subtrahend = _random.nextInt(171) + 28;
-      final diff = minuend - subtrahend;
-      final needsBorrow = (minuend % 10) < (subtrahend % 10);
-      if (!needsBorrow || diff < 25 || diff > 280) continue;
-      return MathDashQuestion(
-        left: minuend,
-        right: subtrahend,
-        operator: '-',
-        answer: diff,
-        options: _buildAdditiveOptions(diff),
-      );
-    }
+    final left = _random.nextInt(60) + 20;
+    final right = _random.nextInt(8) + 2;
+    final diff = left - right;
+    return MathDashQuestion(
+      left: left,
+      right: right,
+      operator: '-',
+      answer: diff,
+      options: _buildAdditiveOptions(diff),
+    );
   }
 
   /// Tables 6-10.

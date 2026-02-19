@@ -36,6 +36,7 @@ class MathDashFlameGame extends FlameGame {
     required this.onVictory,
     this.onFootstep,
     this.onCollision,
+    this.onPoof,
   });
 
   final void Function(int questionIndex) onObstacleReached;
@@ -43,6 +44,7 @@ class MathDashFlameGame extends FlameGame {
   final VoidCallback onVictory;
   final VoidCallback? onFootstep;
   final VoidCallback? onCollision;
+  final VoidCallback? onPoof;
 
   static const _gameWidth = 400.0;
   static const _gameHeight = 300.0;
@@ -60,6 +62,7 @@ class MathDashFlameGame extends FlameGame {
   late GroundComponent _ground;
   late HudComponent _hud;
   ObstacleComponent? _obstacle;
+  ThrownNumber? _thrownNumber;
 
   MathDashState _state = MathDashState.starting;
   double _runSpeed = 0;
@@ -134,10 +137,15 @@ class MathDashFlameGame extends FlameGame {
         break;
 
       case MathDashState.throwing:
-        // Correct answer — background keeps scrolling while number
-        // flies to obstacle. Landing handled by ThrownNumber callback.
+        // Correct answer — obstacle keeps scrolling while the thrown
+        // number chases it. Landing handled by ThrownNumber callback.
         _runSpeed = _targetSpeed;
         _scroll(dt);
+        if (_obstacle != null) {
+          _obstacleX -= _runSpeed * dt;
+          _obstacle!.position.x = _obstacleX;
+          _thrownNumber?.target.x = _obstacleX;
+        }
         _stateTimer += dt;
         if (_stateTimer >= 2.0) _finishThrow();
 
@@ -217,15 +225,17 @@ class MathDashFlameGame extends FlameGame {
 
     if (isCorrect) {
       _state = MathDashState.throwing;
-      world.add(ThrownNumber(
+      _thrownNumber = ThrownNumber(
         text: answerText,
         start: _runner.position + Vector2(20, -40),
         target: obstacleCenter,
         isCorrect: true,
         onHit: _finishThrow,
-      ));
+      );
+      world.add(_thrownNumber!);
     } else {
       _state = MathDashState.colliding;
+      _thrownNumber = null;
       world.add(ThrownNumber(
         text: answerText,
         start: _runner.position + Vector2(20, -40),
@@ -239,11 +249,13 @@ class MathDashFlameGame extends FlameGame {
   /// Called when the thrown number reaches the obstacle (correct answer).
   void _finishThrow() {
     if (_state != MathDashState.throwing) return;
+    _thrownNumber = null;
 
     final gameSize = Vector2(_gameWidth, _gameHeight);
     final pos = _obstacle?.position ?? Vector2(_obstacleStopX, _groundY);
 
     world.add(ObstacleBurstEffect(center: pos + Vector2(0, -20)));
+    onPoof?.call();
     world.add(ScreenFlashEffect.correct(gameSize: gameSize));
     world.add(PopupTextEffect(
       text: '+1',

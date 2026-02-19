@@ -49,6 +49,7 @@ class _MathDashGameState extends State<MathDashGame> {
       onVictory: _onVictory,
       onFootstep: _onFootstep,
       onCollision: _onCollision,
+      onPoof: _onPoof,
     );
   }
 
@@ -120,7 +121,7 @@ class _MathDashGameState extends State<MathDashGame> {
 
     final isCorrect = _session.submitAnswer(answer);
 
-    _playSfx(isCorrect ? 'audio/sfx/success.mp3' : 'audio/sfx/wrong.mp3');
+    if (!isCorrect) _playSfx('audio/sfx/wrong.mp3');
 
     _flameGame.overlays.remove('question');
     _flameGame.resumeEngine();
@@ -161,11 +162,15 @@ class _MathDashGameState extends State<MathDashGame> {
   }
 
   void _onFootstep() {
-    _playSfx('audio/sfx/footstep.wav', player: _footstepPlayer);
+    _playSfx('audio/sfx/footstep.mp3', player: _footstepPlayer);
   }
 
   void _onCollision() {
     _playSfx('audio/sfx/collision.mp3');
+  }
+
+  void _onPoof() {
+    _playSfx('audio/sfx/poof.mp3');
   }
 
   Future<void> _startMusic() async {
@@ -174,7 +179,7 @@ class _MathDashGameState extends State<MathDashGame> {
       await _musicPlayer.setReleaseMode(ReleaseMode.loop);
       await _musicPlayer.setVolume(0.18);
       await _musicPlayer.play(
-        AssetSource('audio/music/math_dash_loop.wav'),
+        AssetSource('audio/music/math_dash_loop.mp3'),
       );
       await _musicPlayer.setPlaybackRate(0.5);
     } on MissingPluginException {
