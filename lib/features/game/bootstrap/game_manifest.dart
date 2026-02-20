@@ -37,5 +37,11 @@ const List<GameManifestEntry> builtInGameManifest = [
     factoryKey: 'subtraction_target_trek',
     enabled: true,
   ),
+  GameManifestEntry(
+    id: 'math_trinn4_level3_number_storm_sprint',
+    slot: GameSlot(subject: Subject.math, trinn: 4, level: 3),
+    factoryKey: 'number_storm_sprint',
+    enabled: true,
+  ),
   // [MINIGAME_MANIFEST_END]
 ];
