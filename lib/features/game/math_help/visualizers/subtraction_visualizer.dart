@@ -39,6 +39,8 @@ class SubtractionVisualizer extends MathVisualizer {
   static const _answerPulseDurationSeconds = 4.0;
   static const _answerPulseScale = 1.15;
   static const _answerPulseCycles = 6;
+  static const _sortAnimationDurationSeconds = 0.55;
+  static const _colorTransitionSeconds = 1.0;
   static const _baseTenDotFillFactor = 0.82;
   static const _baseTenMinSectionHeight = 14.0;
 
@@ -83,8 +85,9 @@ class SubtractionVisualizer extends MathVisualizer {
   late _SceneLayout _layout;
 
   SubtractionVisualizer({required super.context}) {
-    _minuend = _normalizedOperand(0);
-    _rawSubtrahend = _normalizedOperand(1);
+    final (a, b) = _normalizedOperands();
+    _minuend = a;
+    _rawSubtrahend = b;
     _subtrahend = math.min(_minuend, _rawSubtrahend);
     _usesBaseTenBlocks = _minuend > _maxDotOperand;
     _subtrahendHundreds = _subtrahend ~/ 100;
@@ -277,6 +280,7 @@ class SubtractionVisualizer extends MathVisualizer {
       columns: _layout.columns,
       position: _layout.gridOrigin,
       size: _layout.gridSize,
+      showGridLines: !_usesBaseTenBlocks,
     );
     add(_grid!);
 
@@ -725,6 +729,73 @@ class SubtractionVisualizer extends MathVisualizer {
     return (gridSpec, tokenLayouts);
   }
 
+  List<_TokenLayout> _mergedBaseTenLayouts({
+    required Rect rect,
+    required List<_SubtractionToken> tokens,
+  }) {
+    final hundreds =
+        tokens.where((t) => t.kind == _TokenKind.hundreds).length;
+    final tens = tokens.where((t) => t.kind == _TokenKind.tens).length;
+    final ones = tokens
+        .where(
+          (t) => t.kind == _TokenKind.ones || t.kind == _TokenKind.dot,
+        )
+        .length;
+
+    final horizontalInset = math.max(6.0, rect.width * 0.04);
+    final verticalInset = math.max(6.0, rect.height * 0.05);
+    final usableRect = Rect.fromLTWH(
+      rect.left + horizontalInset,
+      rect.top + verticalInset,
+      math.max(40.0, rect.width - (horizontalInset * 2)),
+      math.max(40.0, rect.height - (verticalInset * 2)),
+    );
+
+    final sectionGap = math.max(4.0, verticalInset * 0.4);
+    final sectionHeights = _resolveBaseTenSectionHeights(
+      availableHeight: math.max(18.0, usableRect.height - (sectionGap * 2)),
+      hundredsRows: _gridRows(count: hundreds, maxColumns: 3),
+      tensRows: _gridRows(count: tens, maxColumns: 5),
+      onesRows: _gridRows(count: ones, maxColumns: 10),
+    );
+    final hundredsRect = Rect.fromLTWH(
+      usableRect.left,
+      usableRect.top,
+      usableRect.width,
+      sectionHeights.hundreds,
+    );
+    final tensRect = Rect.fromLTWH(
+      usableRect.left,
+      hundredsRect.bottom + sectionGap,
+      usableRect.width,
+      sectionHeights.tens,
+    );
+    final onesRect = Rect.fromLTWH(
+      usableRect.left,
+      tensRect.bottom + sectionGap,
+      usableRect.width,
+      sectionHeights.ones,
+    );
+    final radii = _resolveBaseTenDotRadii(
+      hundredsRect: hundredsRect,
+      tensRect: tensRect,
+      onesRect: onesRect,
+      hundreds: hundreds,
+      tens: tens,
+      ones: ones,
+    );
+
+    return <_TokenLayout>[
+      ..._hundredsLayouts(
+        rect: hundredsRect,
+        count: hundreds,
+        radius: radii.hundreds,
+      ),
+      ..._tensLayouts(rect: tensRect, count: tens, radius: radii.tens),
+      ..._onesLayouts(rect: onesRect, count: ones, radius: radii.ones),
+    ];
+  }
+
   ({double hundreds, double tens, double ones}) _resolveBaseTenSectionHeights({
     required double availableHeight,
     required int hundredsRows,
@@ -782,20 +853,26 @@ class SubtractionVisualizer extends MathVisualizer {
     required Rect hundredsRect,
     required Rect tensRect,
     required Rect onesRect,
+    int? hundreds,
+    int? tens,
+    int? ones,
   }) {
+    final resolvedHundreds = hundreds ?? _displayHundreds;
+    final resolvedTens = tens ?? _displayTens;
+    final resolvedOnes = ones ?? _displayOnes;
     final onesCellMin = _sectionCellMin(
       rect: onesRect,
-      count: _displayOnes,
+      count: resolvedOnes,
       maxColumns: 10,
     );
     final tensCellMin = _sectionCellMin(
       rect: tensRect,
-      count: _displayTens,
+      count: resolvedTens,
       maxColumns: 5,
     );
     final hundredsCellMin = _sectionCellMin(
       rect: hundredsRect,
-      count: _displayHundreds,
+      count: resolvedHundreds,
       maxColumns: 3,
     );
 
@@ -982,18 +1059,21 @@ class SubtractionVisualizer extends MathVisualizer {
     });
   }
 
-  int _normalizedOperand(int index) {
-    if (index >= context.operands.length) {
-      return 0;
+  (int, int) _normalizedOperands() {
+    int raw(int index) {
+      if (index >= context.operands.length) return 0;
+      final rounded = context.operands[index].round();
+      return rounded < 0 ? 0 : rounded;
     }
-    final rounded = context.operands[index].round();
-    if (rounded < 0) {
-      return 0;
+
+    var a = raw(0);
+    var b = raw(1);
+    if (a > _maxOperand) {
+      final scale = _maxOperand / a;
+      a = _maxOperand;
+      b = (b * scale).round();
     }
-    if (rounded > _maxOperand) {
-      return _maxOperand;
-    }
-    return rounded;
+    return (a, b);
   }
 
   Future<void> _showCountLabel(TextComponent label) {
@@ -1033,8 +1113,6 @@ class SubtractionVisualizer extends MathVisualizer {
     }
 
     _areRemovalTokensHighlighted = true;
-    _secondCountLabel.text = '0';
-    await _showCountLabel(_secondCountLabel);
 
     var runningTotal = 0;
     final tokenStep = Duration(
@@ -1050,6 +1128,10 @@ class SubtractionVisualizer extends MathVisualizer {
       token.color = _removalDotColor;
       runningTotal += token.value;
       _secondCountLabel.text = '$runningTotal';
+      if (!_isSecondOperandVisible) {
+        _isSecondOperandVisible = true;
+        unawaited(_showCountLabel(_secondCountLabel));
+      }
       unawaited(
         token.pulse(duration: _scaledSeconds(_highlightPulseDurationSeconds)),
       );
@@ -1355,17 +1437,65 @@ class SubtractionVisualizer extends MathVisualizer {
         fontWeight: FontWeight.w700,
       );
 
-    for (final token in _remainingTokens) {
-      token.color = _remainingDotColor;
-    }
-
     if (_isMinusVisible) {
       _removeEffects(_minusLabel);
       _minusLabel.scale = Vector2.zero();
       _isMinusVisible = false;
+      await Future<void>.delayed(_scaledDuration(_phasePause));
+      if (_disposed) return;
+    }
+
+    final colorDuration = _scaledSeconds(_colorTransitionSeconds);
+    for (final token in _remainingTokens) {
+      token.animateColorTo(_remainingDotColor, duration: colorDuration);
+    }
+
+    // In base-10 mode, sort remaining tokens by value into a merged layout.
+    if (_usesBaseTenBlocks && _difference > 0) {
+      await _animateRemainingToSortedLayout();
+      if (_disposed) return;
     }
 
     await _slideAndPulseAnswerOperand();
+  }
+
+  Future<void> _animateRemainingToSortedLayout() async {
+    final gridRect = Rect.fromLTWH(
+      _layout.gridOrigin.x,
+      _layout.gridOrigin.y,
+      _layout.gridSize.x,
+      _layout.gridSize.y,
+    );
+    // Sort remaining tokens by descending value (hundreds → tens → ones).
+    final remaining = _remainingTokens.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final mergedLayouts = _mergedBaseTenLayouts(
+      rect: gridRect,
+      tokens: remaining,
+    );
+
+    final moveDuration = _scaledSeconds(_sortAnimationDurationSeconds);
+    final futures = <Future<void>>[];
+    for (var i = 0; i < remaining.length && i < mergedLayouts.length; i++) {
+      final token = remaining[i];
+      final layout = mergedLayouts[i];
+      token.clearEffects();
+
+      final completer = Completer<void>();
+      token.component.add(
+        MoveEffect.to(
+          layout.center,
+          EffectController(
+            duration: moveDuration,
+            curve: Curves.easeInOutCubic,
+          ),
+          onComplete: completer.complete,
+        ),
+      );
+      futures.add(completer.future);
+    }
+    await Future.wait(futures);
   }
 
   Future<void> _slideAndPulseAnswerOperand() async {
@@ -1474,11 +1604,13 @@ class _RoundedGridComponent extends RectangleComponent {
     required int columns,
     required super.position,
     required super.size,
+    this.showGridLines = true,
   }) : _rows = rows,
        _columns = columns;
 
   int _rows;
   int _columns;
+  bool showGridLines;
 
   final Paint _fillPaint = Paint()..color = const Color(0xFFF8FBFF);
   final Paint _framePaint = Paint()
@@ -1504,7 +1636,7 @@ class _RoundedGridComponent extends RectangleComponent {
     canvas.drawRRect(roundedRect, _fillPaint);
     canvas.drawRRect(roundedRect, _framePaint);
 
-    if (_rows <= 0 || _columns <= 0) {
+    if (!showGridLines || _rows <= 0 || _columns <= 0) {
       return;
     }
 
@@ -1541,6 +1673,17 @@ class _SubtractionToken {
 
   Color get color => _paint.color;
   set color(Color value) => _paint.color = value;
+
+  void animateColorTo(Color target, {required double duration}) {
+    switch (component) {
+      case final _SubtractionDotComponent dot:
+        dot.animateColorTo(target, duration: duration);
+      case final _SubtractionBaseTenDotComponent dot:
+        dot.animateColorTo(target, duration: duration);
+      default:
+        _paint.color = target;
+    }
+  }
 
   Vector2 get scale => component.scale;
   set scale(Vector2 value) => component.scale = value;
@@ -1716,6 +1859,27 @@ class _SubtractionDotComponent extends CircleComponent {
          paint: Paint()..color = color,
        );
 
+  Color? _colorStart;
+  Color? _colorTarget;
+  double _colorT = 1;
+  double _colorDuration = 0;
+
+  void animateColorTo(Color target, {required double duration}) {
+    _colorStart = paint.color;
+    _colorTarget = target;
+    _colorT = 0;
+    _colorDuration = duration;
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (_colorT < 1 && _colorTarget != null) {
+      _colorT = (_colorT + dt / _colorDuration).clamp(0.0, 1.0);
+      paint.color = Color.lerp(_colorStart!, _colorTarget!, _colorT)!;
+    }
+  }
+
   void applyLayout(_TokenLayout layout) {
     radius = layout.dotRadius;
     position = layout.center;
@@ -1752,6 +1916,27 @@ class _SubtractionBaseTenDotComponent extends CircleComponent {
   int _value;
   bool _isValueLabelVisible = true;
   late final TextComponent _valueLabel;
+
+  Color? _colorStart;
+  Color? _colorTarget;
+  double _colorT = 1;
+  double _colorDuration = 0;
+
+  void animateColorTo(Color target, {required double duration}) {
+    _colorStart = paint.color;
+    _colorTarget = target;
+    _colorT = 0;
+    _colorDuration = duration;
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    if (_colorT < 1 && _colorTarget != null) {
+      _colorT = (_colorT + dt / _colorDuration).clamp(0.0, 1.0);
+      paint.color = Color.lerp(_colorStart!, _colorTarget!, _colorT)!;
+    }
+  }
 
   Vector2 get _labelPosition => Vector2.all(radius);
 

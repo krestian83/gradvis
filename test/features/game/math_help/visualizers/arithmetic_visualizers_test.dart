@@ -63,9 +63,11 @@ void main() {
     );
     addTearDown(visualizer.onRemove);
 
-    expect(visualizer.children.whereType<CircleComponent>().length, 20);
-    final texts = visualizer.children.whereType<TextComponent>().toList();
-    expect(texts.any((component) => component.text == '20'), isTrue);
+    // 25 triggers base-10 mode: 2 tens + 5 ones = 7 circles.
+    // Second addend is clamped to 0.
+    expect(visualizer.children.whereType<CircleComponent>().length, 7);
+    final texts = _textDescendants(visualizer).toList();
+    expect(texts.any((component) => component.text == '25'), isTrue);
     expect(texts.any((component) => component.text == '0'), isTrue);
   });
 
@@ -123,6 +125,125 @@ void main() {
       );
     },
   );
+
+  test('AdditionVisualizer switches to base-10 for larger operands', () async {
+    final visualizer = await _loadVisualizer(
+      AdditionVisualizer(
+        context: MathHelpContext(
+          topicFamily: MathTopicFamily.arithmetic,
+          operation: 'addition',
+          operands: const [14, 7],
+          correctAnswer: 21,
+        ),
+      ),
+    );
+    addTearDown(visualizer.onRemove);
+
+    expect(
+      visualizer.children.whereType<CircleComponent>().length,
+      greaterThan(1),
+    );
+  });
+
+  test(
+    'AdditionVisualizer uses 100, 10 and 1 labels in base-10 mode',
+    () async {
+      final visualizer = await _loadVisualizer(
+        AdditionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'addition',
+            operands: const [342, 145],
+            correctAnswer: 487,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      expect(
+        visualizer.children.whereType<CircleComponent>().length,
+        greaterThan(1),
+      );
+      final texts = _textDescendants(visualizer).toList();
+      expect(texts.any((component) => component.text == '100'), isTrue);
+      expect(texts.any((component) => component.text == '10'), isTrue);
+      expect(texts.any((component) => component.text == '1'), isTrue);
+    },
+  );
+
+  test(
+    'AdditionVisualizer sizes base-10 dots with exact 2x radius steps',
+    () async {
+      final visualizer = await _loadVisualizer(
+        AdditionVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'addition',
+            operands: const [111, 0],
+            correctAnswer: 111,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      final radii =
+          visualizer.children
+              .whereType<CircleComponent>()
+              .map((dot) => dot.radius)
+              .toList()
+            ..sort((left, right) => right.compareTo(left));
+
+      expect(radii.length, 3);
+      expect(radii[0], closeTo(radii[1] * 2, 0.0001));
+      expect(radii[1], closeTo(radii[2] * 2, 0.0001));
+    },
+  );
+
+  test('AdditionVisualizer clamps result to 500', () async {
+    final visualizer = await _loadVisualizer(
+      AdditionVisualizer(
+        context: MathHelpContext(
+          topicFamily: MathTopicFamily.arithmetic,
+          operation: 'addition',
+          operands: const [700, -2],
+          correctAnswer: 698,
+        ),
+      ),
+    );
+    addTearDown(visualizer.onRemove);
+
+    expect(visualizer.children.whereType<CircleComponent>(), isNotEmpty);
+    final texts = _textDescendants(visualizer).toList();
+    expect(texts.any((component) => component.text == '500'), isTrue);
+    expect(texts.any((component) => component.text == '0'), isTrue);
+  });
+
+  test('AdditionVisualizer centers plus between operand text bounds', () async {
+    final visualizer = await _loadVisualizer(
+      AdditionVisualizer(
+        context: MathHelpContext(
+          topicFamily: MathTopicFamily.arithmetic,
+          operation: 'addition',
+          operands: const [342, 145],
+          correctAnswer: 487,
+        ),
+      ),
+    );
+    addTearDown(visualizer.onRemove);
+
+    final labels = visualizer.children.whereType<TextComponent>();
+    final firstLabel = _topEquationLabel(labels, '342');
+    final secondLabel = _topEquationLabel(labels, '145');
+    final plusLabel = _topEquationLabel(labels, '+');
+
+    final firstRight = firstLabel.position.x + (firstLabel.size.x * 0.5);
+    final secondLeft = secondLabel.position.x - (secondLabel.size.x * 0.5);
+    final midpoint = (firstRight + secondLeft) * 0.5;
+
+    expect(plusLabel.position.x, greaterThan(firstRight));
+    expect(plusLabel.position.x, lessThan(secondLeft));
+    expect((plusLabel.position.x - midpoint).abs(), lessThan(0.6));
+  });
 
   test('SubtractionVisualizer builds subtraction dot-grid scene', () async {
     final visualizer = await _loadVisualizer(
@@ -263,7 +384,7 @@ void main() {
     },
   );
 
-  test('SubtractionVisualizer clamps operands for base-10 mode', () async {
+  test('SubtractionVisualizer clamps minuend to 500', () async {
     final visualizer = await _loadVisualizer(
       SubtractionVisualizer(
         context: MathHelpContext(
