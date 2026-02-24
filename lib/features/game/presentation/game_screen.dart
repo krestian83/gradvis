@@ -68,22 +68,28 @@ class _GameScreenState extends State<GameScreen> {
       child: GradientBackground(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  AppBackButton(onPressed: () => context.pop()),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${node.icon} ${node.label}',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const Spacer(),
-                  MathHelpButton(
-                    subject: widget.subject,
-                    registry: widget.visualizerRegistry,
-                  ),
-                ],
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    AppBackButton(onPressed: () => context.pop()),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${node.icon} ${node.label}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const Spacer(),
+                    MathHelpButton(
+                      subject: widget.subject,
+                      registry: widget.visualizerRegistry,
+                    ),
+                  ],
+                ),
               ),
             ),
             Expanded(

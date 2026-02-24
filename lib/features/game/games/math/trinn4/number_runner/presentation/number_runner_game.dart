@@ -1,5 +1,6 @@
 import 'package:flame/game.dart' as flame;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../../domain/game_interface.dart';
 import '../../../../../math_help/application/math_help_controller.dart';
@@ -34,6 +35,12 @@ class _NumberRunnerGameState extends State<NumberRunnerGame> {
   @override
   void initState() {
     super.initState();
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
     _session = NumberRunnerSessionController();
 
     _flameGame = NumberRunnerFlameGame(
@@ -52,6 +59,11 @@ class _NumberRunnerGameState extends State<NumberRunnerGame> {
 
   @override
   void dispose() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     _mathHelpController?.clearContext();
     _session.dispose();
     super.dispose();
@@ -72,10 +84,8 @@ class _NumberRunnerGameState extends State<NumberRunnerGame> {
             onAnswer: _handleAnswer,
           );
         },
-        'gameOver': (context, game) => GameOverOverlay(
-              session: _session,
-              onClose: _completeGame,
-            ),
+        'gameOver': (context, game) =>
+            GameOverOverlay(session: _session, onClose: _completeGame),
         'victory': (context, game) {
           final result = _result ?? _session.buildResult();
           return VictoryOverlay(
