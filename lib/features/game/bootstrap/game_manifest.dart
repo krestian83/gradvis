@@ -43,5 +43,11 @@ const List<GameManifestEntry> builtInGameManifest = [
     factoryKey: 'number_runner',
     enabled: true,
   ),
+  GameManifestEntry(
+    id: 'math_trinn4_level4_division_dash',
+    slot: GameSlot(subject: Subject.math, trinn: 4, level: 4),
+    factoryKey: 'division_dash',
+    enabled: true,
+  ),
   // [MINIGAME_MANIFEST_END]
 ];

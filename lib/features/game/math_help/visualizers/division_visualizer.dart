@@ -16,7 +16,7 @@ import '../presentation/math_visualizer.dart';
 class DivisionVisualizer extends MathVisualizer {
   static const _fallbackWidth = 320.0;
   static const _fallbackHeight = 220.0;
-  static const _loopPause = Duration(seconds: 3);
+  static const _loopPause = Duration(seconds: 5);
   static const _phasePause = Duration(milliseconds: 1050);
 
   static const _labelRevealSeconds = 0.51;
@@ -132,21 +132,21 @@ class DivisionVisualizer extends MathVisualizer {
         await _revealFieldsWithDivisorCount();
         if (!await _pause()) return;
 
-        // 4. Deal dots
+        // 4. Deal dots into fields
         await _dealDots();
-        if (!await _pause()) return;
+        if (_disposed) return;
       } else {
         await _showOperandLabel(_divisorLabel);
         _isDivisorVisible = true;
         if (!await _pause()) return;
       }
 
-      // 6. Equals sign
+      // 5. Equals sign (immediately after dealing)
       await _showEquationSymbol(_equalsLabel);
       _isEqualsVisible = true;
-      if (!await _pause()) return;
+      if (_disposed) return;
 
-      // 7. Answer
+      // 6. Answer
       await _showResultLabel();
       _isResultVisible = true;
     } finally {
@@ -759,7 +759,7 @@ class _DivisionSceneLayout {
     final h = canvasHeight;
 
     // ── Equation row ────────────────────────────────────────────
-    final equationY = math.max(30.0, h * 0.10);
+    final equationY = math.max(30.0, h * 0.14);
     final centerX = w / 2;
     final step = math.max(26.0, math.min(46.0, w * 0.09));
     final eqPositions = [
@@ -780,8 +780,9 @@ class _DivisionSceneLayout {
     final dotGap = dotRadius * 2.8;
 
     // ── Outer frame bounds ──────────────────────────────────────
-    final framePadH = math.max(12.0, w * 0.035);
-    final frameTop = h * 0.20;
+    final framePadH = math.max(12.0, w * 0.06);
+    final bottomPad = math.max(10.0, h * 0.06);
+    final frameTop = h * 0.34;
     final frameWidth = math.max(80.0, w - framePadH * 2);
     final innerPad = math.max(12.0, frameWidth * 0.04);
 
@@ -798,7 +799,8 @@ class _DivisionSceneLayout {
     final fieldsPerRow =
         math.min(DivisionVisualizer._fieldsPerRow, divisor);
     final fieldRowCount = (divisor / fieldsPerRow).ceil();
-    final fieldGapY = math.max(6.0, h * 0.015);
+    final fieldGapX = math.max(8.0, w * 0.02);
+    final fieldGapY = math.max(10.0, h * 0.025);
 
     // Dot grid inside each field
     final fieldDotCols =
@@ -808,6 +810,8 @@ class _DivisionSceneLayout {
     final fieldDotGap = dotRadius * 2.8;
 
     // Size fields to snugly fit dots with comfortable padding.
+    // Clamp field width so there is always a minimum gap between
+    // adjacent fields in a row.
     final fieldPad = dotRadius * 1.6;
     final fieldContentW = math.max(
       fieldDotGap,
@@ -817,24 +821,29 @@ class _DivisionSceneLayout {
       fieldDotGap,
       (fieldDotRows - 1) * fieldDotGap,
     ) + dotRadius * 2;
-    final fieldW = fieldContentW + fieldPad * 2;
+    final naturalFieldW = fieldContentW + fieldPad * 2;
+    final maxFieldW =
+        (innerW - (fieldsPerRow + 1) * fieldGapX) / fieldsPerRow;
+    final fieldW = math.min(naturalFieldW, math.max(24.0, maxFieldW));
     final fieldH = fieldContentH + fieldPad * 2;
     final fieldSize = Vector2(fieldW, fieldH);
 
-    final fieldSectionH =
-        fieldRowCount * fieldH + (fieldRowCount - 1) * fieldGapY;
-
-    // Separator gap between dot section and field section.
-    final sectionGap = math.max(8.0, h * 0.025);
-
-    // ── Total frame height ──────────────────────────────────────
-    final frameHeight =
-        innerPad + dotSectionH + sectionGap + fieldSectionH + innerPad;
+    // ── Frame fills from frameTop to the bottom (like addition) ─
+    final frameBottom = h - bottomPad;
+    final frameHeight = math.max(72.0, frameBottom - frameTop);
     final frameOrigin = Vector2(framePadH, frameTop);
     final frameSize = Vector2(frameWidth, frameHeight);
 
+    // ── Distribute vertical space evenly ────────────────────────
+    // Three gaps: above dots, between dots & fields, below fields.
+    final fieldTotalH =
+        fieldRowCount * fieldH + (fieldRowCount - 1) * fieldGapY;
+    final contentH = dotSectionH + fieldTotalH;
+    final spare = frameHeight - innerPad * 2 - contentH;
+    final vGap = math.max(8.0, spare / 3);
+
     // ── Dividend dot positions (absolute coords) ────────────────
-    final dotAreaTop = frameTop + innerPad;
+    final dotAreaTop = frameTop + innerPad + vGap;
     final dividendPositions = <Vector2>[];
     for (var i = 0; i < dotCount; i++) {
       final row = i ~/ frameCols;
@@ -853,7 +862,7 @@ class _DivisionSceneLayout {
     }
 
     // ── Field origins (evenly distributed inside the frame) ─────
-    final fieldAreaTop = dotAreaTop + dotSectionH + sectionGap;
+    final fieldAreaTop = dotAreaTop + dotSectionH + vGap;
     final fieldOrigins = <Vector2>[];
     for (var i = 0; i < divisor; i++) {
       final fRow = i ~/ fieldsPerRow;
@@ -862,13 +871,16 @@ class _DivisionSceneLayout {
           ? fieldsPerRow
           : divisor - (fieldRowCount - 1) * fieldsPerRow;
 
-      // Distribute fields evenly: equal space before, between, and
-      // after each field within the inner width.
+      // Distribute fields evenly with at least fieldGapX between
+      // them and on the edges.
       final totalFieldsW = rowFieldCount * fieldW;
       final remainingSpace = innerW - totalFieldsW;
       final spacerCount = rowFieldCount + 1;
-      final spacer = remainingSpace / spacerCount;
-      final xStart = framePadH + innerPad + spacer + fCol * (fieldW + spacer);
+      final spacer = math.max(fieldGapX, remainingSpace / spacerCount);
+      final rowW = rowFieldCount * fieldW + (spacerCount - 1) * spacer;
+      final rowOffset = (innerW - rowW) / 2;
+      final xStart =
+          framePadH + innerPad + rowOffset + spacer + fCol * (fieldW + spacer);
 
       fieldOrigins.add(
         Vector2(xStart, fieldAreaTop + fRow * (fieldH + fieldGapY)),
