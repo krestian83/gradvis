@@ -7,12 +7,12 @@ import 'package:flutter/painting.dart';
 /// Image-based parallax with six layers at different scroll speeds.
 class ParallaxBackground extends PositionComponent {
   static const _layerDefs = [
-    _LayerDef('number_runner/layers/1_sky.png', 0.0),
-    _LayerDef('number_runner/layers/2_clouds.png', 0.05),
-    _LayerDef('number_runner/layers/3_clouds.png', 0.1),
-    _LayerDef('number_runner/layers/4_rocks.png', 0.3),
-    _LayerDef('number_runner/layers/5_clouds.png', 0.5),
-    _LayerDef('number_runner/layers/6_rocks.png', 0.8),
+    _LayerDef('number_runner/layers/Sky.png', 0.0),
+    _LayerDef('number_runner/layers/Middle_Decor.png', 0.05),
+    _LayerDef('number_runner/layers/BG_Decor.png', 0.1),
+    _LayerDef('number_runner/layers/Foreground.png', 0.24),
+    _LayerDef('number_runner/layers/Ground_01.png', 0.5),
+    _LayerDef('number_runner/layers/Ground_02.png', 0.82),
   ];
 
   final List<_LoadedLayer> _layers = [];
