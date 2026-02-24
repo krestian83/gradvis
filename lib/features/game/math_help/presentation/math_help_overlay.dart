@@ -7,7 +7,7 @@ import 'math_visualizer.dart';
 import 'math_visualizer_game_widget.dart';
 
 /// Centered surface showing the visual explanation.
-class MathHelpOverlay extends StatelessWidget {
+class MathHelpOverlay extends StatefulWidget {
   final MathHelpContext helpContext;
   final MathVisualizer visualizer;
 
@@ -18,12 +18,27 @@ class MathHelpOverlay extends StatelessWidget {
   });
 
   @override
+  State<MathHelpOverlay> createState() => _MathHelpOverlayState();
+}
+
+class _MathHelpOverlayState extends State<MathHelpOverlay> {
+  bool _paused = false;
+
+  void _togglePause() {
+    setState(() {
+      _paused = !_paused;
+      widget.visualizer.paused = _paused;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Center(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final maxWidth = math.min(920.0, constraints.maxWidth * 0.94);
+            final maxWidth =
+                math.min(920.0, constraints.maxWidth * 0.94);
             final maxHeight = constraints.maxHeight * 0.86;
             final minHeight = math.min(420.0, maxHeight);
 
@@ -36,7 +51,8 @@ class MathHelpOverlay extends StatelessWidget {
               child: Container(
                 key: const Key('math-help-overlay'),
                 margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                padding:
+                    const EdgeInsets.fromLTRB(16, 16, 16, 18),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FBFF),
                   borderRadius: BorderRadius.circular(24),
@@ -58,9 +74,12 @@ class MathHelpOverlay extends StatelessWidget {
                         children: [
                           Text(
                             'Visualisering',
-                            style: Theme.of(context).textTheme.titleLarge
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
                                 ?.copyWith(
-                                  color: const Color(0xFF0A2463),
+                                  color:
+                                      const Color(0xFF0A2463),
                                   fontFamily: 'Fredoka One',
                                   fontSize: 36,
                                   fontWeight: FontWeight.w700,
@@ -68,10 +87,31 @@ class MathHelpOverlay extends StatelessWidget {
                           ),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: IconButton(
-                              tooltip: 'Lukk hjelpevindu',
-                              onPressed: () => Navigator.of(context).maybePop(),
-                              icon: const Icon(Icons.close_rounded),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: _paused
+                                      ? 'Spill av'
+                                      : 'Pause',
+                                  onPressed: _togglePause,
+                                  icon: Icon(
+                                    _paused
+                                        ? Icons
+                                            .play_arrow_rounded
+                                        : Icons.pause_rounded,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Lukk hjelpevindu',
+                                  onPressed: () =>
+                                      Navigator.of(context)
+                                          .maybePop(),
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -81,7 +121,9 @@ class MathHelpOverlay extends StatelessWidget {
                     Expanded(
                       child: SizedBox(
                         width: double.infinity,
-                        child: MathVisualizerGameWidget(visualizer: visualizer),
+                        child: MathVisualizerGameWidget(
+                          visualizer: widget.visualizer,
+                        ),
                       ),
                     ),
                   ],
