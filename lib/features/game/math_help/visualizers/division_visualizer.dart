@@ -796,9 +796,6 @@ class _DivisionSceneLayout {
         math.max(dotGap, frameRows * dotGap) + dotRadius * 2;
 
     // ── Distribution fields (bottom section of frame) ───────────
-    final fieldsPerRow =
-        math.min(DivisionVisualizer._fieldsPerRow, divisor);
-    final fieldRowCount = (divisor / fieldsPerRow).ceil();
     final fieldGapX = math.max(8.0, w * 0.02);
     final fieldGapY = math.max(10.0, h * 0.025);
 
@@ -810,8 +807,6 @@ class _DivisionSceneLayout {
     final fieldDotGap = dotRadius * 2.8;
 
     // Size fields to snugly fit dots with comfortable padding.
-    // Clamp field width so there is always a minimum gap between
-    // adjacent fields in a row.
     final fieldPad = dotRadius * 1.6;
     final fieldContentW = math.max(
       fieldDotGap,
@@ -821,12 +816,19 @@ class _DivisionSceneLayout {
       fieldDotGap,
       (fieldDotRows - 1) * fieldDotGap,
     ) + dotRadius * 2;
-    final naturalFieldW = fieldContentW + fieldPad * 2;
-    final maxFieldW =
-        (innerW - (fieldsPerRow + 1) * fieldGapX) / fieldsPerRow;
-    final fieldW = math.min(naturalFieldW, math.max(24.0, maxFieldW));
+    final fieldW = fieldContentW + fieldPad * 2;
     final fieldH = fieldContentH + fieldPad * 2;
     final fieldSize = Vector2(fieldW, fieldH);
+
+    // Determine how many fields fit per row at their natural size.
+    var fieldsPerRow =
+        math.min(DivisionVisualizer._fieldsPerRow, divisor);
+    while (fieldsPerRow > 1 &&
+        fieldsPerRow * fieldW + (fieldsPerRow + 1) * fieldGapX >
+            innerW) {
+      fieldsPerRow--;
+    }
+    final fieldRowCount = (divisor / fieldsPerRow).ceil();
 
     // ── Frame fills from frameTop to the bottom (like addition) ─
     final frameBottom = h - bottomPad;
@@ -861,7 +863,7 @@ class _DivisionSceneLayout {
       );
     }
 
-    // ── Field origins (evenly distributed inside the frame) ─────
+    // ── Field origins (centered per row, consistent gap) ────────
     final fieldAreaTop = dotAreaTop + dotSectionH + vGap;
     final fieldOrigins = <Vector2>[];
     for (var i = 0; i < divisor; i++) {
@@ -871,16 +873,13 @@ class _DivisionSceneLayout {
           ? fieldsPerRow
           : divisor - (fieldRowCount - 1) * fieldsPerRow;
 
-      // Distribute fields evenly with at least fieldGapX between
-      // them and on the edges.
-      final totalFieldsW = rowFieldCount * fieldW;
-      final remainingSpace = innerW - totalFieldsW;
-      final spacerCount = rowFieldCount + 1;
-      final spacer = math.max(fieldGapX, remainingSpace / spacerCount);
-      final rowW = rowFieldCount * fieldW + (spacerCount - 1) * spacer;
-      final rowOffset = (innerW - rowW) / 2;
-      final xStart =
-          framePadH + innerPad + rowOffset + spacer + fCol * (fieldW + spacer);
+      final rowTotalW =
+          rowFieldCount * fieldW + (rowFieldCount - 1) * fieldGapX;
+      final rowOffset = (innerW - rowTotalW) / 2;
+      final xStart = framePadH +
+          innerPad +
+          rowOffset +
+          fCol * (fieldW + fieldGapX);
 
       fieldOrigins.add(
         Vector2(xStart, fieldAreaTop + fRow * (fieldH + fieldGapY)),
@@ -898,7 +897,8 @@ class _DivisionSceneLayout {
       final dotsInSlotRow = (slotRow < fieldDotRows - 1)
           ? fieldDotCols
           : quotient - (fieldDotRows - 1) * fieldDotCols;
-      final rowWidth = math.max(0, dotsInSlotRow - 1) * fieldDotGap;
+      final rowWidth =
+          math.max(0, dotsInSlotRow - 1) * fieldDotGap;
       final xStart = fOrigin.x + (fieldW - rowWidth) / 2;
       dealtPositions.add(
         Vector2(
