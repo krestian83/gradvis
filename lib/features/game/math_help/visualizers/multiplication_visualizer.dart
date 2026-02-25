@@ -560,21 +560,26 @@ class MultiplicationVisualizer extends MathVisualizer {
     );
   }
 
+  static const _axisLabelMargin = 14.0;
+
   Rect _arenaBounds() {
     final double width = size.x > 0 ? size.x : _fallbackWidth;
     final double height = size.y > 0 ? size.y : _fallbackHeight;
     final double horizontalPadding = math.max(12, width * 0.06);
     final double topPadding = height * 0.38;
     final double bottomPadding = math.max(10, height * 0.06);
-    final double arenaWidth = math.max(0, width - (horizontalPadding * 2));
+    final double arenaWidth = math.max(
+      0,
+      width - (horizontalPadding * 2) - _axisLabelMargin,
+    );
     final double arenaHeight = math.max(
       72,
-      height - topPadding - bottomPadding,
+      height - topPadding - bottomPadding - _axisLabelMargin,
     );
 
     return Rect.fromLTWH(
-      horizontalPadding,
-      topPadding,
+      horizontalPadding + _axisLabelMargin,
+      topPadding + _axisLabelMargin,
       arenaWidth,
       arenaHeight,
     );
@@ -795,6 +800,10 @@ class _MultiplicationGridComponent extends PositionComponent {
     ..strokeWidth = 1.2
     ..style = PaintingStyle.stroke;
 
+  static const _labelColor = Color(0xFF5A6D8E);
+  static const _labelFontSize = 10.0;
+  static const _labelGap = 3.0;
+
   void setDimensions({required int rows, required int columns}) {
     _rows = rows;
     _columns = columns;
@@ -826,6 +835,56 @@ class _MultiplicationGridComponent extends PositionComponent {
     for (int row = 1; row < _rows; row++) {
       final double y = cellHeight * row;
       canvas.drawLine(Offset(0, y), Offset(rect.width, y), _linePaint);
+    }
+
+    _renderAxisLabels(canvas, cellWidth, cellHeight);
+  }
+
+  void _renderAxisLabels(
+    Canvas canvas,
+    double cellWidth,
+    double cellHeight,
+  ) {
+    for (int col = 0; col < _columns; col++) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${col + 1}',
+          style: const TextStyle(
+            color: _labelColor,
+            fontSize: _labelFontSize,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(
+        canvas,
+        Offset(
+          cellWidth * col + (cellWidth - tp.width) / 2,
+          -tp.height - _labelGap,
+        ),
+      );
+    }
+
+    for (int row = 0; row < _rows; row++) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${row + 1}',
+          style: const TextStyle(
+            color: _labelColor,
+            fontSize: _labelFontSize,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(
+        canvas,
+        Offset(
+          -tp.width - _labelGap,
+          cellHeight * row + (cellHeight - tp.height) / 2,
+        ),
+      );
     }
   }
 }
