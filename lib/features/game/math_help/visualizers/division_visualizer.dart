@@ -64,9 +64,12 @@ class DivisionVisualizer extends MathVisualizer {
   final _dots = <_DivisionDotComponent>[];
   final _fields = <_DistributionFieldComponent>[];
 
+  static const _maxDividend = 144;
+  static const _maxDivisor = 12;
+
   DivisionVisualizer({required super.context}) {
-    _dividend = _operand(0);
-    _divisor = math.max(1, _operand(1));
+    _dividend = _operand(0).clamp(0, _maxDividend);
+    _divisor = _operand(1).clamp(1, _maxDivisor);
     _quotient = context.correctAnswer.round().abs();
     _dotCount = _divisor * _quotient;
   }

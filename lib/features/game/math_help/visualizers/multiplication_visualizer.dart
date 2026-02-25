@@ -50,9 +50,11 @@ class MultiplicationVisualizer extends MathVisualizer {
   late final TextComponent _equalsLabel;
   late final TextComponent _resultLabel;
 
+  static const _maxOperand = 12;
+
   MultiplicationVisualizer({required super.context}) {
-    _targetRows = _wholeOperand(0);
-    _targetColumns = _wholeOperand(1);
+    _targetRows = _wholeOperand(0).clamp(0, _maxOperand);
+    _targetColumns = _wholeOperand(1).clamp(0, _maxOperand);
     _rows = _previewRows;
     _columns = _previewColumns;
   }
