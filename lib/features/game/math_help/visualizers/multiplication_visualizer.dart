@@ -152,12 +152,7 @@ class MultiplicationVisualizer extends MathVisualizer {
     return !_disposed;
   }
 
-  int get _previewRows {
-    if (_targetRows <= 1) {
-      return _targetRows;
-    }
-    return _targetColumns > 1 ? _targetRows : 1;
-  }
+  int get _previewRows => _targetRows;
 
   int get _previewColumns {
     if (_targetProduct <= 1) {
@@ -840,11 +835,7 @@ class _MultiplicationGridComponent extends PositionComponent {
     _renderAxisLabels(canvas, cellWidth, cellHeight);
   }
 
-  void _renderAxisLabels(
-    Canvas canvas,
-    double cellWidth,
-    double cellHeight,
-  ) {
+  void _renderAxisLabels(Canvas canvas, double cellWidth, double cellHeight) {
     for (int col = 0; col < _columns; col++) {
       final tp = TextPainter(
         text: TextSpan(

@@ -539,6 +539,25 @@ void main() {
     },
   );
 
+  test(
+    'MultiplicationVisualizer keeps first-operand dots when multiplier is 1',
+    () async {
+      final visualizer = await _loadVisualizer(
+        MultiplicationVisualizer(
+          context: MathHelpContext(
+            topicFamily: MathTopicFamily.arithmetic,
+            operation: 'multiplication',
+            operands: const [5, 1],
+            correctAnswer: 5,
+          ),
+        ),
+      );
+      addTearDown(visualizer.onRemove);
+
+      expect(visualizer.children.whereType<CircleComponent>().length, 5);
+    },
+  );
+
   test('DivisionVisualizer builds total dots and group labels', () async {
     final visualizer = await _loadVisualizer(
       DivisionVisualizer(
